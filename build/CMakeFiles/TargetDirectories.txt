@@ -1,0 +1,3 @@
+C:/Users/ADMINS/Documents/Berciimart/build/CMakeFiles/BerciiMart.dir
+C:/Users/ADMINS/Documents/Berciimart/build/CMakeFiles/edit_cache.dir
+C:/Users/ADMINS/Documents/Berciimart/build/CMakeFiles/rebuild_cache.dir
