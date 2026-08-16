@@ -1,3 +1,0 @@
-C:/Users/ADMINS/Documents/Berciimart/build/CMakeFiles/BerciiMart.dir
-C:/Users/ADMINS/Documents/Berciimart/build/CMakeFiles/ALL_BUILD.dir
-C:/Users/ADMINS/Documents/Berciimart/build/CMakeFiles/ZERO_CHECK.dir

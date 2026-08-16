@@ -1,4 +1,5 @@
 #include <iostream>
+#include"../include/database.h"
 #include <fstream>
 #include <string>
 #include "../include/user.h"
@@ -32,6 +33,9 @@ string resolveUsersFile()
 
 int main()
 {
+    if(!connectDatabase()){
+    return 1;
+}
     USERS_FILE = resolveUsersFile();
 
     int choice;
@@ -109,6 +113,6 @@ int main()
         }
 
     } while(choice != 3);
-
+closeDatabase();
     return 0;
 }

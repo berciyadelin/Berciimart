@@ -1,0 +1,5 @@
+*.pdb
+*.exe
+database/users.txt
+src/users.txt
+build/
