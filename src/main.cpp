@@ -5,7 +5,7 @@
 #include "../include/user.h"
 
 using namespace std;
-
+extern PGconn* conn;
 string USERS_FILE = "database/users.txt";
 
 string resolveUsersFile()
@@ -30,12 +30,13 @@ string resolveUsersFile()
 
     return USERS_FILE;
 }
-
 int main()
 {
-    if(!connectDatabase()){
-    return 1;
-}
+    if (!connectDatabase())
+    {
+        return 1;
+    }
+
     USERS_FILE = resolveUsersFile();
 
     int choice;
@@ -45,24 +46,23 @@ int main()
         cout << "\n==========================\n";
         cout << "      BERCIIMART SYSTEM\n";
         cout << "==========================\n";
-
         cout << "1. Register\n";
         cout << "2. Login\n";
         cout << "3. Exit\n";
-
         cout << "Enter your choice: ";
 
-        if(!(cin >> choice))
+        if (!(cin >> choice))
         {
             cout << "\nInvalid input. Exiting.\n";
             break;
         }
 
-        switch(choice)
+        switch (choice)
         {
             case 1:
             {
                 string username;
+                string email;
                 string password;
 
                 cout << "\n--- Register ---\n";
@@ -70,14 +70,13 @@ int main()
                 cout << "Enter username: ";
                 cin >> username;
 
+                cout << "Enter email: ";
+                cin >> email;
+
                 cout << "Enter password: ";
                 cin >> password;
 
-                // Creating User object
-                User user(username, password);
-
-                // Calling class function
-                user.registerUser(USERS_FILE);
+                registerDatabaseUser(username, email, password);
 
                 break;
             }
@@ -89,17 +88,67 @@ int main()
 
                 cout << "\n--- Login ---\n";
 
-                cout << "Username: ";
+                cout << "Enter username: ";
                 cin >> username;
 
-                cout << "Password: ";
+                cout << "Enter password: ";
                 cin >> password;
 
-                // Creating User object
-                User user(username, password);
+                int userId = loginDatabaseUser(username, password);
 
-                // Calling class function
-                user.loginUser(USERS_FILE);
+                if (userId != -1)
+                {
+                    cout << "\nWelcome to BerciiMart!\n";
+
+                    int shopChoice;
+
+                    do
+                    {
+                        cout << "\n========================\n";
+                        cout << "     BERCIIMART SHOP\n";
+                        cout << "========================\n";
+                        cout << "1. View Products\n";
+                        cout << "2. Add to Cart\n";
+                        cout << "3. View Cart\n";
+                        cout << "4. Checkout\n";
+                        cout << "5. My Orders\n";
+                        cout << "6. Logout\n";
+                        cout << "Enter your choice: ";
+
+                        cin >> shopChoice;
+
+                        switch (shopChoice)
+                        {
+                            case 1:
+                                viewProducts();
+                                break;
+
+                            case 2:
+                                addProductToCart();
+                                break;
+
+                            case 3:
+                                viewCart();
+                                break;
+
+                            case 4:
+                                checkout();
+                                break;
+
+                            case 5:
+                                viewMyOrders();
+                                break;
+
+                            case 6:
+                                cout << "\nLogged out successfully.\n";
+                                break;
+
+                            default:
+                                cout << "\nInvalid choice.\n";
+                        }
+
+                    } while (shopChoice != 6);
+                }
 
                 break;
             }
@@ -112,7 +161,9 @@ int main()
                 cout << "\nInvalid choice! Please try again.\n";
         }
 
-    } while(choice != 3);
-closeDatabase();
+    } while (choice != 3);
+
+    closeDatabase();
+
     return 0;
 }

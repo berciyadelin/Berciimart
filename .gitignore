@@ -1,5 +1,23 @@
-*.pdb
-*.exe
-database/users.txt
-src/users.txt
+# Build files
 build/
+*.exe
+*.dll
+*.dll.a
+*.pdb
+*.obj
+
+# Visual Studio / CMake generated files
+.vs/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+.ninja_deps
+.ninja_log
+build.ninja
+
+# User data
+database/users.txt
+
+# Backup source files
+src/*_backup.cpp

@@ -1,4 +1,0 @@
-delin:123456
-anuja:200832
-keerthana:876543
-stace:678901
