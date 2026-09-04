@@ -1,5 +1,9 @@
 #include "../include/database.h"
+#include <argon2.h>
+#include<cstring>
+#include <algorithm>
 #include <iostream>
+#include <random>
 #include <string>
 
 using namespace std;
@@ -50,7 +54,7 @@ void closeDatabase()
 
 
 // ============================================================
-// REGISTER USER
+// REGISTER USER - ARGON2ID
 // ============================================================
 
 bool registerDatabaseUser(
@@ -59,13 +63,67 @@ bool registerDatabaseUser(
     const string& password
 )
 {
+    // Argon2id parameters
+    const uint32_t t_cost = 2;
+    const uint32_t m_cost = 65536;
+    const uint32_t parallelism = 1;
+
+    const size_t saltLength = 16;
+    const size_t hashLength = 32;
+
+    unsigned char salt[saltLength];
+
+    // Generate a random salt
+    random_device rd;
+
+    for (size_t i = 0; i < saltLength; i++)
+    {
+        salt[i] = static_cast<unsigned char>(rd() & 0xFF);
+    }
+
+    // Calculate required encoded string size
+    size_t encodedLength = argon2_encodedlen(
+        t_cost,
+        m_cost,
+        parallelism,
+        saltLength,
+        hashLength,
+        Argon2_type::Argon2_id
+    );
+
+    string encodedHash(encodedLength, '\0');
+
+    int result = argon2id_hash_encoded(
+        t_cost,
+        m_cost,
+        parallelism,
+        password.c_str(),
+        password.length(),
+        salt,
+        saltLength,
+        hashLength,
+        encodedHash.data(),
+        encodedHash.size()
+    );
+
+    if (result != ARGON2_OK)
+    {
+        cout << "Password hashing failed.\n";
+        cout << "Argon2 error: "
+             << argon2_error_message(result) << "\n";
+        return false;
+    }
+
+    // Remove unused trailing null character if present
+    encodedHash.resize(strlen(encodedHash.c_str()));
+
     const char* params[3];
 
     params[0] = username.c_str();
     params[1] = email.c_str();
-    params[2] = password.c_str();
+    params[2] = encodedHash.c_str();
 
-    PGresult* result = PQexecParams(
+    PGresult* resultDb = PQexecParams(
         conn,
         "INSERT INTO public.users "
         "(name, email, password_hash) "
@@ -78,25 +136,24 @@ bool registerDatabaseUser(
         0
     );
 
-    if (PQresultStatus(result) != PGRES_COMMAND_OK)
+    if (PQresultStatus(resultDb) != PGRES_COMMAND_OK)
     {
         cout << "Registration failed: "
              << PQerrorMessage(conn) << "\n";
 
-        PQclear(result);
+        PQclear(resultDb);
         return false;
     }
 
-    PQclear(result);
+    PQclear(resultDb);
 
     cout << "Registration successful!\n";
-
     return true;
 }
 
 
 // ============================================================
-// LOGIN USER
+// LOGIN USER - ARGON2ID VERIFICATION
 // ============================================================
 
 int loginDatabaseUser(
@@ -104,16 +161,15 @@ int loginDatabaseUser(
     const string& password
 )
 {
-    const char* params[2];
-
+    const char* params[1];
     params[0] = username.c_str();
-    params[1] = password.c_str();
 
     PGresult* result = PQexecParams(
         conn,
-        "SELECT id FROM public.users "
-        "WHERE name = $1 AND password_hash = $2",
-        2,
+        "SELECT id, password_hash "
+        "FROM public.users "
+        "WHERE name = $1",
+        1,
         nullptr,
         params,
         nullptr,
@@ -135,13 +191,27 @@ int loginDatabaseUser(
         PQclear(result);
 
         cout << "Invalid username or password.\n";
-
         return -1;
     }
 
     int userId = stoi(PQgetvalue(result, 0, 0));
 
+    string storedHash = PQgetvalue(result, 0, 1);
+
     PQclear(result);
+
+    // Verify password using Argon2id
+    int verifyResult = argon2id_verify(
+        storedHash.c_str(),
+        password.c_str(),
+        password.length()
+    );
+
+    if (verifyResult != ARGON2_OK)
+    {
+        cout << "Invalid username or password.\n";
+        return -1;
+    }
 
     currentUserId = userId;
 
@@ -184,21 +254,11 @@ void viewProducts()
 
     for (int i = 0; i < rows; i++)
     {
-        cout << "ID: "
-             << PQgetvalue(result, i, 0)
-
-             << " | Name: "
-             << PQgetvalue(result, i, 1)
-
-             << " | Price: Rs."
-             << PQgetvalue(result, i, 2)
-
-             << " | Quantity: "
-             << PQgetvalue(result, i, 3)
-
-             << " | Category ID: "
-             << PQgetvalue(result, i, 4)
-
+        cout << "ID: " << PQgetvalue(result, i, 0)
+             << " | Name: " << PQgetvalue(result, i, 1)
+             << " | Price: Rs." << PQgetvalue(result, i, 2)
+             << " | Quantity: " << PQgetvalue(result, i, 3)
+             << " | Category ID: " << PQgetvalue(result, i, 4)
              << "\n";
     }
 
@@ -240,12 +300,7 @@ void addProductToCart()
     string userIdStr = to_string(currentUserId);
     string productIdStr = to_string(productId);
 
-    // --------------------------------------------------------
-    // CHECK PRODUCT
-    // --------------------------------------------------------
-
     const char* productParams[1];
-
     productParams[0] = productIdStr.c_str();
 
     PGresult* productResult = PQexecParams(
@@ -285,11 +340,6 @@ void addProductToCart()
 
     PQclear(productResult);
 
-
-    // --------------------------------------------------------
-    // CHECK EXISTING CART QUANTITY
-    // --------------------------------------------------------
-
     const char* cartCheckParams[2];
 
     cartCheckParams[0] = userIdStr.c_str();
@@ -328,11 +378,6 @@ void addProductToCart()
 
     PQclear(cartCheckResult);
 
-
-    // --------------------------------------------------------
-    // STOCK VALIDATION
-    // --------------------------------------------------------
-
     if (existingQuantity + quantity > availableStock)
     {
         cout << "\nNot enough stock available.\n";
@@ -351,11 +396,6 @@ void addProductToCart()
 
         return;
     }
-
-
-    // --------------------------------------------------------
-    // INSERT OR UPDATE CART
-    // --------------------------------------------------------
 
     string quantityStr = to_string(quantity);
 
@@ -417,7 +457,6 @@ void viewCart()
     string userIdStr = to_string(currentUserId);
 
     const char* params[1];
-
     params[0] = userIdStr.c_str();
 
     PGresult* result = PQexecParams(
@@ -509,12 +548,7 @@ void checkout()
     string userIdStr = to_string(currentUserId);
 
     const char* cartParams[1];
-
     cartParams[0] = userIdStr.c_str();
-
-    // --------------------------------------------------------
-    // GET CART ITEMS
-    // --------------------------------------------------------
 
     PGresult* result = PQexecParams(
         conn,
@@ -552,11 +586,6 @@ void checkout()
         return;
     }
 
-
-    // --------------------------------------------------------
-    // CALCULATE TOTAL
-    // --------------------------------------------------------
-
     double total = 0;
 
     for (int i = 0; i < rows; i++)
@@ -569,11 +598,6 @@ void checkout()
 
         total += quantity * price;
     }
-
-
-    // --------------------------------------------------------
-    // CREATE ORDER
-    // --------------------------------------------------------
 
     string totalStr = to_string(total);
 
@@ -603,6 +627,7 @@ void checkout()
 
         PQclear(orderResult);
         PQclear(result);
+
         return;
     }
 
@@ -611,15 +636,9 @@ void checkout()
 
     PQclear(orderResult);
 
-
-    // --------------------------------------------------------
-    // SAVE ORDER ITEMS
-    // --------------------------------------------------------
-
     for (int i = 0; i < rows; i++)
     {
-        string orderIdStr =
-            to_string(orderId);
+        string orderIdStr = to_string(orderId);
 
         string productIdStr =
             PQgetvalue(result, i, 0);
@@ -657,6 +676,7 @@ void checkout()
 
             PQclear(itemResult);
             PQclear(result);
+
             return;
         }
 
@@ -665,18 +685,14 @@ void checkout()
 
     PQclear(result);
 
-
-    // --------------------------------------------------------
-    // REDUCE PRODUCT STOCK
-    // --------------------------------------------------------
-
     PGresult* stockResult = PQexecParams(
         conn,
         "UPDATE public.products p "
         "SET quantity = p.quantity - c.quantity "
         "FROM public.cart c "
         "WHERE p.id = c.product_id "
-        "AND c.user_id = $1",
+        "AND c.user_id = $1 "
+        "AND p.quantity >= c.quantity",
         1,
         nullptr,
         cartParams,
@@ -691,11 +707,6 @@ void checkout()
     }
 
     PQclear(stockResult);
-
-
-    // --------------------------------------------------------
-    // CLEAR CART
-    // --------------------------------------------------------
 
     PGresult* clearResult = PQexecParams(
         conn,
@@ -717,15 +728,9 @@ void checkout()
 
     PQclear(clearResult);
 
-
-    // --------------------------------------------------------
-    // CHECKOUT SUCCESS
-    // --------------------------------------------------------
-
     cout << "\n========== CHECKOUT ==========\n";
 
     cout << "Order created successfully!\n";
-
     cout << "Order ID: "
          << orderId << "\n";
 
@@ -733,14 +738,11 @@ void checkout()
          << total << "\n";
 
     cout << "Order items saved successfully!\n";
-
     cout << "Product stock updated successfully!\n";
-
     cout << "Cart cleared successfully!\n";
-
     cout << "Checkout completed successfully!\n";
 
-    cout << "==============================\n";
+cout << "==============================\n";
 }
 
 
@@ -756,11 +758,9 @@ void viewMyOrders()
         return;
     }
 
-    string userIdStr =
-        to_string(currentUserId);
+    string userIdStr = to_string(currentUserId);
 
     const char* params[1];
-
     params[0] = userIdStr.c_str();
 
     PGresult* result = PQexecParams(
