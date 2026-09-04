@@ -18,8 +18,7 @@ bool connectDatabase()
         "host=localhost "
         "port=5432 "
         "dbname=berciimart "
-        "user=postgres "
-        "password=bercii@7117"
+        "user=postgres"
     );
 
     if (PQstatus(conn) != CONNECTION_OK)
