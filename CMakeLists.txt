@@ -45,3 +45,8 @@ target_link_libraries(DatabaseTest
     PRIVATE
     ${PostgreSQL_LIBRARY}
 )
+add_custom_command(TARGET BerciiMart POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "C:/vcpkg/installed/x64-windows/bin/argon2.dll"
+    "$<TARGET_FILE_DIR:BerciiMart>"
+)
