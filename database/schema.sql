@@ -4,6 +4,6 @@ CREATE TABLE products (
     description TEXT,
     price NUMERIC(10,2) NOT NULL,
     quantity INTEGER NOT NULL DEFAULT 0,
-    category VARCHAR(50),
+    category_id INTEGER REFERENCES categories(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
