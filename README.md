@@ -1,94 +1,102 @@
-🛒 BerciiMart
+# 🛒 BerciiMart
 
-📌 About the Project
+## 📌 About the Project
 
-BerciiMart is a console-based multi-seller e-commerce application developed using C++ and PostgreSQL. The project provides a simple shopping experience through a command-line interface and demonstrates how an application can interact with a database to store and manage information.
+BerciiMart is a console-based multi-seller e-commerce application developed using **C++ and PostgreSQL**.
 
-The system allows users to register and log in, view available products, search for products, add products to a shopping cart, and place orders. Sellers can manage their products by adding, viewing, updating, and deleting product information.
+The project demonstrates how a C++ application can connect to a relational database, manage users and products, process shopping carts, create orders, and securely handle user passwords.
 
-✨ Features
+The application provides a simple command-line shopping experience where users can register, log in, browse products, add products to their cart, checkout, and view their previous orders.
 
-- 👤 User Registration and Login
-- 🏪 Seller Management
-- 📦 Product Management
-- 🔍 Product Search
-- 🛒 Shopping Cart
-- 🧾 Order Management
-- 💾 PostgreSQL Database
-- 🔄 CRUD Operations
-- 🧪 Testing Support
-- ⚙️ CMake Build System
-- 📚 vcpkg Dependency Management
+---
 
-🛠️ Technologies Used
+## ✨ Features
 
-- C++ – Main programming language
-- PostgreSQL – Database management
-- SQL – Database operations
-- CMake – Project build system
-- vcpkg – Dependency management
-- Git & GitHub – Version control and project hosting
-- GitHub Actions – Automated build and testing
+### 👤 User Management
+- User registration
+- User login
+- User logout
+- Password verification using **Argon2id**
+- Secure password hash storage in PostgreSQL
 
-🔄 Project Workflow
+### 📦 Product Management
+- View available products
+- Product information including name, price, and quantity
+- Product search
+- Product CRUD operations
 
-User
-  ↓
-C++ Console Application
-  ↓
-Application Logic
-  ↓
-Database Connection
-  ↓
-PostgreSQL
-  ↓
-Store / Retrieve Data
-  ↓
-Display Result to User
+### 🛒 Shopping Cart
+- Add products to cart
+- View cart
+- Add the same product multiple times
+- Automatically combine quantities for duplicate cart items
+- Quantity validation
+- Product availability and stock checking
 
-🗄️ Database
+### 🧾 Order Management
+- Checkout
+- Automatic order total calculation
+- Stock reduction after successful checkout
+- Order item storage
+- View user's previous orders
 
-PostgreSQL is used to store the important information required by the application. The database helps maintain data even after the application is closed.
+### 🗄️ Database
+- PostgreSQL database integration
+- Relational database design
+- Primary keys and foreign keys
+- Unique constraints
+- Quantity validation
+- Persistent data storage
 
-The system performs common database operations such as:
+### 🔐 Security
+- Argon2id password hashing
+- Random salt generation
+- Password verification without storing plaintext passwords
+- Database password removed from application source code
+- Build files and generated files excluded using `.gitignore`
 
-- Create – Add new users or products
-- Read – View users, products, and orders
-- Update – Modify existing information
-- Delete – Remove unwanted information
+### 🧪 Testing
+- Database connection testing
+- User registration and login testing
+- Invalid login testing
+- Product and cart testing
+- Quantity validation testing
+- Stock validation testing
+- Checkout testing
+- Order history testing
 
-📁 Project Structure
+---
 
-BerciiMart/
-│
-├── src/
-│   └── C++ source files
-│
-├── include/
-│   └── Header files
-│
-├── database/
-│   └── Database-related files
-│
-├── test/
-│   └── Testing files
-│
-├── docs/
-│   └── Project documentation
-│
-├── .github/
-│   └── GitHub Actions workflows
-│
-├── CMakeLists.txt
-├── input.txt
-└── README.md
+## 🛠️ Technologies Used
 
-🎯 Objective
+- **C++20** – Main programming language
+- **PostgreSQL** – Database management system
+- **libpq** – PostgreSQL C/C++ client library
+- **Argon2** – Secure password hashing
+- **SQL** – Database operations
+- **CMake** – Project build system
+- **Ninja** – Build tool
+- **vcpkg** – C/C++ dependency management
+- **Git** – Version control
+- **GitHub** – Project hosting
+- **GitHub Actions** – Automated build and testing
+- **Visual Studio Code** – Development environment
 
-The main objective of BerciiMart is to develop a simple e-commerce system while demonstrating C++ programming, database connectivity, CRUD operations, modular project development, testing, and version control.
+---
 
-🚀 Conclusion
+## 🔐 Password Security
 
-BerciiMart combines a C++ console application with a PostgreSQL database to create a simple multi-seller shopping system. The project demonstrates the complete flow from user interaction to application processing and database storage.
+BerciiMart uses **Argon2id** for password hashing.
 
-C++ → Database Connection → PostgreSQL → Data Processing → User Output
+Passwords are not stored as plaintext in the database.
+
+During registration:
+
+```text
+User Password
+      ↓
+Argon2id
+      ↓
+Random Salt + Password Hash
+      ↓
+PostgreSQL password_hash
