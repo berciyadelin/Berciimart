@@ -21,3 +21,4 @@ database/users.txt
 
 # Backup source files
 src/*_backup.cpp
+#Build directory build/
