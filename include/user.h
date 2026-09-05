@@ -2,123 +2,72 @@
 #define USER_H
 
 #include <iostream>
-#include <fstream>
 #include <string>
-#include <vector>
-#include <algorithm>
 
 using namespace std;
 
 class User
 {
 private:
-    string username;
-    string password;
+    int id;
+    string name;
+    string email;
 
 public:
+    // Default constructor
     User()
     {
-        username = "";
-        password = "";
+        id = 0;
+        name = "";
+        email = "";
     }
 
-    User(string u, string p)
+    // Parameterized constructor
+    User(int userId, const string& userName, const string& userEmail)
     {
-        username = u;
-        password = p;
+        id = userId;
+        name = userName;
+        email = userEmail;
     }
 
-    string getUsername()
+    // Setters
+    void setId(int userId)
     {
-        return username;
+        id = userId;
     }
 
-    bool registerUser(string file)
+    void setName(const string& userName)
     {
-        vector<pair<string, string>> users;
-
-        ifstream in(file);
-        string line;
-
-        while(getline(in, line))
-        {
-            if(line.empty())
-                continue;
-
-            size_t pos = line.find(':');
-
-            if(pos != string::npos)
-            {
-                users.push_back({
-                    line.substr(0, pos),
-                    line.substr(pos + 1)
-                });
-            }
-        }
-
-        in.close();
-
-        for(auto &u : users)
-        {
-            if(u.first == username)
-            {
-                cout << "User already exists.\n";
-                return false;
-            }
-        }
-
-        ofstream out(file, ios::app);
-
-        if(!out.is_open())
-        {
-            cout << "Unable to open users database.\n";
-            return false;
-        }
-
-        out << username << ":" << password << "\n";
-        out.close();
-
-        cout << "Registration successful.\n";
-        return true;
+        name = userName;
     }
 
-    bool loginUser(string file)
+    void setEmail(const string& userEmail)
     {
-        ifstream in(file);
+        email = userEmail;
+    }
 
-        if(!in.is_open())
-        {
-            cout << "Unable to open users database.\n";
-            return false;
-        }
+    // Getters
+    int getId() const
+    {
+        return id;
+    }
 
-        string line;
+    string getName() const
+    {
+        return name;
+    }
 
-        while(getline(in, line))
-        {
-            size_t pos = line.find(':');
+    string getEmail() const
+    {
+        return email;
+    }
 
-            if(pos == string::npos)
-                continue;
-
-            string savedUsername = line.substr(0, pos);
-            string savedPassword = line.substr(pos + 1);
-
-            if(savedUsername == username &&
-               savedPassword == password)
-            {
-                cout << "Login successful. Welcome, "
-                     << username << "!\n";
-
-                in.close();
-                return true;
-            }
-        }
-
-        in.close();
-
-        cout << "Login failed. Invalid credentials.\n";
-        return false;
+    // Display user information
+    void displayUser() const
+    {
+        cout << "User ID: " << id << "\n";
+        cout << "Name: " << name << "\n";
+        cout << "Email: " << email << "\n";
     }
 };
 
