@@ -1,0 +1,9 @@
+{
+    "name": "berciimart",
+    "version-string": "1.0.0",
+    "dependencies": [
+        "drogon",
+        "libpq",
+        "argon2"
+    ]
+}
