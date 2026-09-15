@@ -1,10 +1,10 @@
 #include "OrderRepository.h"
-#include "C:/Users/ADMINS/Documents/Berciimart/include/database.h"
+#include "../../include/database.h"
 
 #include <iostream>
 #include <string>
 #include <vector>
-#include <cstdint>
+
 // ============================================================
 // CREATE ORDER
 // ============================================================
@@ -17,18 +17,15 @@ bool OrderRepository::createOrder(Order& order)
         return false;
     }
 
-    std::string buyerIdStr =
-        std::to_string(order.buyerId);
-
-    double totalAmount =
-        static_cast<double>(order.totalPriceCents) / 100.0;
+    std::string userIdStr =
+        std::to_string(order.userId);
 
     std::string totalAmountStr =
-        std::to_string(totalAmount);
+        std::to_string(order.totalAmount);
 
     const char* params[3];
 
-    params[0] = buyerIdStr.c_str();
+    params[0] = userIdStr.c_str();
     params[1] = totalAmountStr.c_str();
     params[2] = order.status.c_str();
 
@@ -85,11 +82,8 @@ bool OrderRepository::addOrderItem(const OrderItem& item)
     std::string quantityStr =
         std::to_string(item.quantity);
 
-    double price =
-        static_cast<double>(item.priceCents) / 100.0;
-
     std::string priceStr =
-        std::to_string(price);
+        std::to_string(item.price);
 
     const char* params[4];
 
@@ -141,12 +135,12 @@ OrderRepository::getOrdersByBuyer(int buyerId)
         return orders;
     }
 
-    std::string buyerIdStr =
+    std::string userIdStr =
         std::to_string(buyerId);
 
     const char* params[1];
 
-    params[0] = buyerIdStr.c_str();
+    params[0] = userIdStr.c_str();
 
     PGresult* result = PQexecParams(
         conn,
@@ -183,16 +177,11 @@ OrderRepository::getOrdersByBuyer(int buyerId)
         order.id =
             std::stoi(PQgetvalue(result, i, 0));
 
-        order.buyerId =
+        order.userId =
             std::stoi(PQgetvalue(result, i, 1));
 
-        double totalAmount =
+        order.totalAmount =
             std::stod(PQgetvalue(result, i, 2));
-
-        order.totalPriceCents =
-            static_cast<std::int64_t>(
-                totalAmount * 100.0
-            );
 
         order.status =
             PQgetvalue(result, i, 3);
@@ -221,76 +210,18 @@ OrderRepository::getOrdersBySeller(int sellerId)
         return orders;
     }
 
-    std::string sellerIdStr =
-        std::to_string(sellerId);
-
-    const char* params[1];
-
-    params[0] = sellerIdStr.c_str();
-
     /*
-       This query assumes that the products table
-       contains a seller_id column.
+        The current products table does not contain seller_id.
+
+        Therefore, seller-specific orders cannot be retrieved
+        using the current database structure.
+
+        This function is kept so that the repository interface
+        remains complete.
     */
 
-    PGresult* result = PQexecParams(
-        conn,
-        "SELECT DISTINCT "
-        "o.id, "
-        "o.user_id, "
-        "o.total_amount, "
-        "o.status "
-        "FROM public.orders o "
-        "JOIN public.order_items oi "
-        "ON o.id = oi.order_id "
-        "JOIN public.products p "
-        "ON oi.product_id = p.id "
-        "WHERE p.seller_id = $1 "
-        "ORDER BY o.id DESC",
-        1,
-        nullptr,
-        params,
-        nullptr,
-        nullptr,
-        0
-    );
-
-    if (PQresultStatus(result) != PGRES_TUPLES_OK)
-    {
-        std::cout << "Failed to load seller orders: "
-                  << PQerrorMessage(conn) << "\n";
-
-        PQclear(result);
-        return orders;
-    }
-
-    int rows = PQntuples(result);
-
-    for (int i = 0; i < rows; i++)
-    {
-        Order order;
-
-        order.id =
-            std::stoi(PQgetvalue(result, i, 0));
-
-        order.buyerId =
-            std::stoi(PQgetvalue(result, i, 1));
-
-        double totalAmount =
-            std::stod(PQgetvalue(result, i, 2));
-
-        order.totalPriceCents =
-            static_cast<std::int64_t>(
-                totalAmount * 100.0
-            );
-
-        order.status =
-            PQgetvalue(result, i, 3);
-
-        orders.push_back(order);
-    }
-
-    PQclear(result);
+    std::cout << "Seller orders are not available.\n";
+    std::cout << "The products table does not contain seller_id.\n";
 
     return orders;
 }
@@ -327,6 +258,81 @@ OrderRepository::getAllOrders()
                   << PQerrorMessage(conn) << "\n";
 
         PQclear(result);
+        return orders;
     }
+
+    int rows = PQntuples(result);
+
+    for (int i = 0; i < rows; i++)
+    {
+        Order order;
+
+        order.id =
+            std::stoi(PQgetvalue(result, i, 0));
+
+        order.userId =
+            std::stoi(PQgetvalue(result, i, 1));
+
+        order.totalAmount =
+            std::stod(PQgetvalue(result, i, 2));
+
+        order.status =
+            PQgetvalue(result, i, 3);
+
+        orders.push_back(order);
+    }
+
+    PQclear(result);
+
     return orders;
+}
+
+
+// ============================================================
+// UPDATE ORDER STATUS
+// ============================================================
+
+bool OrderRepository::updateOrderStatus(
+    int orderId,
+    const std::string& status)
+{
+    if (conn == nullptr)
+    {
+        std::cout << "Database is not connected.\n";
+        return false;
+    }
+
+    std::string orderIdStr =
+        std::to_string(orderId);
+
+    const char* params[2];
+
+    params[0] = status.c_str();
+    params[1] = orderIdStr.c_str();
+
+    PGresult* result = PQexecParams(
+        conn,
+        "UPDATE public.orders "
+        "SET status = $1 "
+        "WHERE id = $2",
+        2,
+        nullptr,
+        params,
+        nullptr,
+        nullptr,
+        0
+    );
+
+    if (PQresultStatus(result) != PGRES_COMMAND_OK)
+    {
+        std::cout << "Failed to update order status: "
+                  << PQerrorMessage(conn) << "\n";
+
+        PQclear(result);
+        return false;
+    }
+
+    PQclear(result);
+
+    return true;
 }
