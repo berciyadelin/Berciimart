@@ -1,154 +1,138 @@
-🛒 BerciiMart
+# 🛒 BerciiMart
 
-Multi-Seller E-Commerce Marketplace
+## Multi-Seller E-Commerce Marketplace
 
-BerciiMart is a C++20-based multi-seller e-commerce marketplace developed as a capstone project.
+BerciiMart is a C++20-based console e-commerce application developed as a capstone project.
 
-The project uses PostgreSQL for persistent data storage and is being developed as a native C++ web application using Drogon, with a browser-based frontend planned for the Review-2 implementation.
-
-The application covers core e-commerce operations including user authentication, product management, shopping carts, checkout, orders, and reviews.
+The project uses PostgreSQL for persistent data storage and demonstrates user authentication, product management, shopping cart operations, checkout, order creation, and order history.
 
 ---
 
-📌 Project Status
+## 📌 Project Status
 
-Current Status: Review-2 Development
+### Current Status: Review-2 Development
 
-The project has progressed from the initial console-based implementation to the Drogon-based web application architecture.
+The current working implementation is a console-based C++ application connected to PostgreSQL.
 
-Completed / Verified
+### Completed and Verified
 
 - PostgreSQL database connectivity
-- User registration and login
+- User registration
+- User login
 - Argon2id password hashing
-- Product management foundation
+- Product listing
 - Shopping cart operations
-- Quantity and stock validation
-- Checkout and order creation
+- Quantity validation
+- Stock validation
+- Checkout
+- Order creation
+- Order item storage
+- Stock reduction after checkout
+- Cart clearing after checkout
 - Order history
+- Logout
 - CMake build configuration
+- Ninja build system
 - vcpkg dependency management
-- Drogon web server setup
-- Local HTTP server running successfully on port "8080"
-- Initial web API structure
-- GitHub version control
-
-In Progress
-
-- Complete REST API implementation
-- Buyer, Seller and Admin workflows
-- Product search and category filtering
-- Complete cart and checkout APIs
-- Order and review APIs
-- Browser frontend
-- Integration between frontend and C++ backend
-- Automated testing
-- Production cloud deployment
+- Git and GitHub version control
 
 ---
 
-✨ Main Features
+## ✨ Main Features
 
-👤 User Management
+### 👤 User Management
 
 - User registration
 - User login
 - User logout
-- Argon2id password hashing
+- Password hashing using Argon2id
 - Secure password storage
 - PostgreSQL-based user persistence
+- User roles such as BUYER, SELLER, and ADMIN
 
-📦 Product Management
+### 📦 Product Management
 
-- Product listing
-- Product information
-- Product search
-- Product CRUD foundation
-- Stock management
-- Category support
+- View available products
+- Display product ID
+- Display product name
+- Display product price
+- Display available quantity
+- PostgreSQL-based product storage
 
-🛒 Shopping Cart
+### 🛒 Shopping Cart
 
 - Add products to cart
 - View cart
-- Update quantities
-- Remove cart items
-- Combine duplicate product entries
+- Add quantities
+- Combine quantities for an existing product
 - Quantity validation
 - Stock availability checking
 
-🧾 Orders & Checkout
+### 🧾 Checkout and Orders
 
-- Checkout
-- Order total calculation
-- Stock reduction
-- Order item storage
-- Order history
-- Order management foundation
-
-⭐ Reviews
-
-The project includes a review and rating component for supporting product feedback and star ratings.
+- Checkout cart
+- Calculate order total
+- Create order
+- Store order items
+- Update product stock
+- Clear cart after successful checkout
+- View previous orders
 
 ---
 
-🏗️ Project Architecture
+## 🏗️ Application Architecture
 
-The application is being developed using a layered architecture:
+The current application follows a simple console-based architecture:
 
-                    Browser
-                       │
-                       ▼
-              HTML / CSS / JavaScript
-                       │
-                       ▼
-                 Drogon HTTP
-                     Server
-                       │
-                       ▼
-                  Controllers
-                       │
-                       ▼
-                    Services
-                       │
-                       ▼
-                 Repositories
-                       │
-                       ▼
-                  PostgreSQL
+                 C++ Console Application
+                          │
+                          ▼
+                    main.cpp
+                          │
+                          ▼
+                   database.cpp
+                          │
+                          ▼
+                    libpq / SQL
+                          │
+                          ▼
+                    PostgreSQL
+                          │
+             ┌────────────┼────────────┐
+             ▼            ▼            ▼
+           Users       Products       Cart
+                                      │
+                                      ▼
+                                   Orders
 
-This structure separates HTTP handling, business logic, database access, and data models.
+The C++ application handles the user interface and application flow.
+
+The database layer handles PostgreSQL connectivity, SQL queries, authentication, products, cart operations, checkout, and orders.
 
 ---
 
-📁 Project Structure
+## 📁 Project Structure
 
 Berciimart/
 │
 ├── .github/
 │   └── workflows/
 │
-├── .vscode/
-│
 ├── database/
 │   ├── schema.sql
-│   ├── seed.sql
 │   └── migrations/
 │
 ├── docs/
 │
 ├── include/
+│   ├── database.h
+│   └── user.h
 │
 ├── src/
-│   ├── controller/
-│   ├── service/
-│   ├── repository/
-│   ├── model/
-│   ├── dto/
-│   ├── filter/
-│   ├── plugin/
-│   ├── util/
-│   └── exception/
+│   ├── main.cpp
+│   ├── database.cpp
+│   ├── db_test.cpp
+│   └── *_backup.cpp
 │
 ├── test/
 │
@@ -159,62 +143,56 @@ Berciimart/
 
 ---
 
-🛠️ Technology Stack
+## 🛠️ Technology Stack
 
-Technology| Purpose
-C++20| Application and backend development
-Drogon| C++ HTTP web framework
-PostgreSQL| Relational database
-libpq| PostgreSQL client library
-Argon2| Password hashing
-CMake| Build configuration
-Ninja| Build system
-vcpkg| C/C++ dependency management
-Git| Version control
-GitHub| Source-code hosting
-GitHub Actions| CI automation
-Visual Studio Code| Development environment
+| Technology | Purpose |
+|------------|---------|
+| C++20 | Main programming language |
+| PostgreSQL | Relational database |
+| libpq | PostgreSQL client library |
+| Argon2 | Password hashing |
+| SQL | Database operations |
+| CMake | Build configuration |
+| Ninja | Build system |
+| vcpkg | C/C++ dependency management |
+| Git | Version control |
+| GitHub | Source-code hosting |
+| Visual Studio Code | Development environment |
 
 ---
 
-🗄️ Database
+## 🗄️ Database
 
 BerciiMart uses PostgreSQL for persistent application data.
 
-The project contains database schema, seed data, and migration files under:
-
-database/
-
-Core entities include:
+The application currently works with database entities including:
 
 - Users
 - Products
 - Categories
-- Cart Items
+- Cart
 - Orders
 - Order Items
-- Reviews
 
-The database uses relational constraints such as primary keys, foreign keys, unique constraints, and validation rules.
+The database uses relational features such as:
+
+- Primary keys
+- Foreign keys
+- Unique constraints
+- Check constraints
+- Quantity validation
+
+The application connects to PostgreSQL using the libpq client library.
 
 ---
 
-🔐 Security
+## 🔐 Security
 
-Security is an important part of the project.
+BerciiMart uses Argon2id for password hashing.
 
-BerciiMart includes:
+Passwords are not stored as plain text.
 
-- Argon2id password hashing
-- Random salt generation
-- No plaintext password storage
-- Parameterized PostgreSQL queries
-- Input validation
-- Database constraints
-- Separation of database credentials from application source code
-- ".gitignore" protection for generated/build files
-
-Password Flow
+### Password Flow
 
 User Password
       │
@@ -222,128 +200,116 @@ User Password
    Argon2id
       │
       ▼
-Password Hash + Salt
+Password Hash
       │
       ▼
    PostgreSQL
 
----
-
-🌐 Local Web Application
-
-The Drogon web server can currently be run locally using:
-
-.\build\BerciiMart.exe
-
-The local application is available at:
-
-http://localhost:8080
-
-The initial web server provides a basic BerciiMart response and health endpoint while the remaining marketplace APIs are being implemented.
+The application also uses parameterized PostgreSQL queries for database operations.
 
 ---
 
-🔨 Build Instructions
+## 🔄 Application Workflow
 
-Requirements
+### 1. Start Application
 
-Install the following before building:
+The program connects to the PostgreSQL database.
+
+### 2. Register
+
+The user enters:
+
+- Username
+- Email
+- Password
+- Role
+
+The password is hashed using Argon2id and the user information is stored in PostgreSQL.
+
+### 3. Login
+
+The user enters their username and password.
+
+The application verifies the password and allows access to the shopping menu after successful authentication.
+
+### 4. View Products
+
+The application retrieves available products from PostgreSQL and displays their details.
+
+### 5. Add to Cart
+
+The user selects a product ID and quantity.
+
+The application validates the requested quantity against available stock and stores the cart information in PostgreSQL.
+
+### 6. View Cart
+
+The application displays the products and quantities currently stored in the user's cart.
+
+### 7. Checkout
+
+The application:
+
+1. Reads the cart
+2. Calculates the total
+3. Creates an order
+4. Stores order items
+5. Updates product stock
+6. Clears the cart
+
+### 8. My Orders
+
+The user can view previously created orders, including:
+
+- Order ID
+- Total amount
+- Status
+- Order date
+
+### 9. Logout
+
+The user returns to the main application menu.
+
+---
+
+## 🧪 Testing and Verification
+
+The current implementation has been tested for:
+
+- Database connection
+- User registration
+- User login
+- Product display
+- Add to cart
+- View cart
+- Checkout
+- Order creation
+- Order item creation
+- Product stock update
+- Cart clearing
+- Order history
+- Logout
+- CMake/Ninja build
+
+The application successfully builds using the configured CMake and Ninja environment.
+
+---
+
+## 🔨 Build Instructions
+
+### Requirements
 
 - C++20 compatible compiler
-- CMake 3.25+
+- CMake
 - Ninja
 - PostgreSQL
 - vcpkg
-- Drogon dependencies
+- libpq
+- Argon2
 
-Configure
+### Configure
 
-cmake -S . -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake
+From the project directory:
 
-Build
-
-cmake --build build
-
-Run
-
-.\build\BerciiMart.exe
-
-Then open:
-
-http://localhost:8080
-
----
-
-🧪 Testing
-
-The project includes testing and verification for important application components, including:
-
-- Database connectivity
-- User registration
-- User login
-- Invalid login handling
-- Product operations
-- Cart operations
-- Quantity validation
-- Stock validation
-- Checkout
-- Order creation
-- Order history
-- Web server availability
-
-Additional automated and HTTP-level testing will be expanded as the Review-2 implementation progresses.
-
----
-
-☁️ Deployment Plan
-
-The final application is intended to be deployed as a complete web application:
-
-                    Internet
-                       │
-                       ▼
-                  HTTPS / Nginx
-                       │
-                       ▼
-                Drogon C++ Backend
-                       │
-                       ▼
-                PostgreSQL Database
-
-The production deployment will include:
-
-- Linux cloud server
-- Compiled C++ application
-- PostgreSQL database
-- systemd service
-- Nginx reverse proxy
-- HTTPS/TLS
-- Persistent database storage
-- Public application URL
-
----
-
-🎯 Review-2 Goal
-
-The Review-2 implementation focuses on delivering a functional multi-seller marketplace with:
-
-- Buyer authentication
-- Seller authentication
-- Admin functionality
-- Product management
-- Product search and filtering
-- Shopping cart
-- Checkout
-- Order management
-- Reviews and ratings
-- Browser-based frontend
-- Secure PostgreSQL persistence
-- Public cloud deployment
-
----
-
-👨‍💻 Project
-
-BerciiMart — C++ Capstone Project
-
-A multi-seller e-commerce marketplace developed using modern C++, PostgreSQL and the Drogon web framework.
+```text
+cmake -S . -B build -G Ninja

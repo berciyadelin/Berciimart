@@ -9,7 +9,8 @@ void closeDatabase();
 bool registerDatabaseUser(
     const std::string& username,
     const std::string& email,
-    const std::string& password
+    const std::string& password,
+    const std::string&role
 );
 int loginDatabaseUser(
     const std::string& username,

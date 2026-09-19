@@ -60,7 +60,8 @@ void closeDatabase()
 bool registerDatabaseUser(
     const string& username,
     const string& email,
-    const string& password
+    const string& password,
+    const string& role
 )
 {
     // Argon2id parameters
@@ -117,18 +118,19 @@ bool registerDatabaseUser(
     // Remove unused trailing null character if present
     encodedHash.resize(strlen(encodedHash.c_str()));
 
-    const char* params[3];
+    const char* params[4];
 
     params[0] = username.c_str();
     params[1] = email.c_str();
     params[2] = encodedHash.c_str();
+    params[3] = role.c_str();
 
     PGresult* resultDb = PQexecParams(
         conn,
         "INSERT INTO public.users "
-        "(name, email, password_hash) "
-        "VALUES ($1, $2, $3)",
-        3,
+        "(name, email, password_hash, role) "
+        "VALUES ($1, $2, $3, $4)",
+        4,
         nullptr,
         params,
         nullptr,
@@ -138,8 +140,8 @@ bool registerDatabaseUser(
 
     if (PQresultStatus(resultDb) != PGRES_COMMAND_OK)
     {
-        cout << "Registration failed: "
-             << PQerrorMessage(conn) << "\n";
+        cout << "Registration failed:\n";
+        cout << PQerrorMessage(conn) << "\n";
 
         PQclear(resultDb);
         return false;
