@@ -66,7 +66,7 @@ int main()
 
                 string password;
 
-string role;
+                string role;
                 cout << "\n--- Register ---\n";
 
                 cout << "Enter username: ";
@@ -77,8 +77,8 @@ string role;
 
                 cout << "Enter password: ";
                 cin >> password;
-cout<<"Enter role (customer/admin): ";
-cin>>role;
+                cout << "Enter role (BUYER/SELLER/ADMIN): ";
+                cin>>role;
 
 
 
