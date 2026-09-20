@@ -9,20 +9,17 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
     pkg-config \
-    git \
     libpq-dev \
     libargon2-dev \
     libdrogon-dev \
     libjsoncpp-dev \
     default-libmysqlclient-dev \
-    libmariadb-dev \
     libbrotli-dev \
     libhiredis-dev \
     libsqlite3-dev \
     libyaml-cpp-dev \
     libssl-dev \
     libcurl4-openssl-dev \
-    libuuid1 \
     uuid-dev \
     zlib1g-dev \
     libc-ares-dev \
@@ -32,17 +29,6 @@ WORKDIR /app
 
 COPY . .
 
-# ------------------------------------------------------------
-# Verify required libraries are present before CMake.
-# ------------------------------------------------------------
-RUN test -f /usr/include/mysql/mysql.h \
-    && test -f /usr/lib/x86_64-linux-gnu/libmysqlclient.so \
-    && test -f /usr/include/brotli/decode.h \
-    && test -f /usr/include/brotli/encode.h
-
-# ------------------------------------------------------------
-# Configure and build BerciiMart.
-# ------------------------------------------------------------
 RUN cmake -S . -B build \
     -DCMAKE_BUILD_TYPE=Release \
     -DMYSQL_INCLUDE_DIR=/usr/include/mysql \
@@ -68,7 +54,6 @@ RUN apt-get update && apt-get install -y \
     libpq5 \
     libargon2-1 \
     libmysqlclient21 \
-    libmariadb3 \
     libbrotli1 \
     libhiredis1.1.0 \
     libsqlite3-0 \
@@ -82,14 +67,9 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Backend executable
 COPY --from=build /app/build/BerciiMart /app/BerciiMart
-
-# Frontend files
 COPY --from=build /app/frontend /app/frontend
 
-# Render supplies PORT at runtime.
 EXPOSE 10000
 
-# Start the C++ Drogon server.
 CMD ["./BerciiMart"]
