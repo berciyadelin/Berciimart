@@ -49,7 +49,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function showSection(sectionId) {
 
-    // Allow navigation buttons to use short names.
     const sectionMap = {
         products: "productsSection",
         cart: "cartSection",
@@ -64,7 +63,7 @@ function showSection(sectionId) {
     const sections =
         document.querySelectorAll("main .section");
 
-    sections.forEach(section => {
+    sections.forEach((section) => {
         section.style.display = "none";
     });
 
@@ -160,7 +159,9 @@ async function register() {
         message.textContent =
             "Registration successful! Please login.";
 
-        document.getElementById("registerForm").reset();
+        document
+            .getElementById("registerForm")
+            .reset();
 
         setTimeout(() => {
             showLogin();
@@ -236,16 +237,18 @@ async function login() {
             JSON.stringify(currentUser)
         );
 
-        document.getElementById("loginForm").reset();
+        document
+            .getElementById("loginForm")
+            .reset();
 
         message.textContent =
             "Login successful!";
 
         showSection("productsSection");
 
-        loadProducts();
-        loadCart();
-        loadOrders();
+        await loadProducts();
+        await loadCart();
+        await loadOrders();
 
     } catch (error) {
 
@@ -266,9 +269,11 @@ async function login() {
 
 function logout() {
 
-    localStorage.removeItem("berciimart_user");
-
     currentUser = null;
+
+    localStorage.removeItem(
+        "berciimart_user"
+    );
 
     products = [];
     cart = [];
@@ -284,7 +289,6 @@ function logout() {
 
 function getProductImage(product) {
 
-    // First use image_url from database if available.
     if (
         product &&
         product.image_url &&
@@ -296,8 +300,7 @@ function getProductImage(product) {
     const name =
         String(product?.name || "").toLowerCase();
 
-
-    // LAPTOP
+    // Laptop
     if (
         name.includes("laptop") ||
         name.includes("computer") ||
@@ -306,46 +309,35 @@ function getProductImage(product) {
         return "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=600&q=80";
     }
 
-
-    // PHONE
+    // Phone
     if (
         name.includes("phone") ||
-        name.includes("mobile") ||
         name.includes("iphone") ||
         name.includes("samsung")
     ) {
         return "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=600&q=80";
     }
 
-
-    // KEYBOARD
-    if (
-        name.includes("keyboard")
-    ) {
+    // Keyboard
+    if (name.includes("keyboard")) {
         return "https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=600&q=80";
     }
 
-
-    // MOUSE
-    if (
-        name.includes("mouse")
-    ) {
+    // Mouse
+    if (name.includes("mouse")) {
         return "https://images.unsplash.com/photo-1527814050087-3793815479db?auto=format&fit=crop&w=600&q=80";
     }
 
-
-    // HEADPHONES
+    // Headphones
     if (
         name.includes("headphone") ||
-        name.includes("headset") ||
         name.includes("earphone") ||
         name.includes("airpod")
     ) {
         return "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=600&q=80";
     }
 
-
-    // T-SHIRT
+    // T-shirt
     if (
         name.includes("shirt") ||
         name.includes("tshirt") ||
@@ -354,8 +346,7 @@ function getProductImage(product) {
         return "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=600&q=80";
     }
 
-
-    // SHOES
+    // Shoes
     if (
         name.includes("shoe") ||
         name.includes("sneaker") ||
@@ -364,8 +355,7 @@ function getProductImage(product) {
         return "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=600&q=80";
     }
 
-
-    // WATCH
+    // Watch
     if (
         name.includes("watch") ||
         name.includes("smartwatch")
@@ -373,8 +363,7 @@ function getProductImage(product) {
         return "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&q=80";
     }
 
-
-    // BAG
+    // Bag
     if (
         name.includes("bag") ||
         name.includes("backpack")
@@ -382,36 +371,26 @@ function getProductImage(product) {
         return "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=600&q=80";
     }
 
-
-    // CAMERA
-    if (
-        name.includes("camera")
-    ) {
+    // Camera
+    if (name.includes("camera")) {
         return "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=600&q=80";
     }
 
-
-    // PYTHON / PROGRAMMING BOOK
+    // Books
     if (
-        name.includes("python book") ||
-        name.includes("programming book") ||
-        name.includes("c programming") ||
-        name.includes("coding book") ||
-        name.includes("book")
+        name.includes("book") ||
+        name.includes("python") ||
+        name.includes("programming") ||
+        name.includes("coding")
     ) {
         return "https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=600&q=80";
     }
 
-
-    // RICE
-    if (
-        name.includes("rice")
-    ) {
+    // Rice
+    if (name.includes("rice")) {
         return "https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=600&q=80";
     }
 
-
-    // DEFAULT
     return "https://via.placeholder.com/600x400?text=BerciiMart";
 }
 
@@ -445,12 +424,12 @@ async function loadProducts() {
 
         if (!response.ok || !data.success) {
 
-            container.innerHTML =
-                "<p>Unable to load products.</p>";
-
             console.error(
                 data.error || "Failed to load products"
             );
+
+            container.innerHTML =
+                "<p>Unable to load products.</p>";
 
             return;
         }
@@ -462,7 +441,7 @@ async function loadProducts() {
 
         populateCategories();
 
-        displayProducts();
+        displayProducts(products);
 
     } catch (error) {
 
@@ -493,7 +472,7 @@ function populateCategories() {
     const categories = [
         ...new Set(
             products
-                .map(product =>
+                .map((product) =>
                     product.category || "General"
                 )
                 .filter(Boolean)
@@ -503,7 +482,7 @@ function populateCategories() {
     filter.innerHTML =
         `<option value="">All Categories</option>`;
 
-    categories.forEach(category => {
+    categories.forEach((category) => {
 
         const option =
             document.createElement("option");
@@ -538,7 +517,7 @@ function displayProducts(list = products) {
     }
 
     container.innerHTML =
-        list.map(product => {
+        list.map((product) => {
 
             const image =
                 getProductImage(product);
@@ -587,7 +566,7 @@ function displayProducts(list = products) {
                     </p>
 
                     <button
-                        onclick="addToCart(${product.id})"
+                        onclick="addToCart(${Number(product.id)})"
                         ${quantity <= 0 ? "disabled" : ""}
                     >
                         ${
@@ -627,7 +606,7 @@ function applyProductFilters() {
             : "";
 
     const filtered =
-        products.filter(product => {
+        products.filter((product) => {
 
             const name =
                 String(product.name || "")
@@ -659,11 +638,9 @@ function applyProductFilters() {
     displayProducts(filtered);
 }
 
-
 function searchProducts() {
     applyProductFilters();
 }
-
 
 function filterProducts() {
     applyProductFilters();
@@ -687,22 +664,22 @@ async function addToCart(productId) {
     try {
 
         const response =
-            await fetch(`${API_URL}/cart`, {
-
-                method: "POST",
-
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-User-Id":
-                        String(currentUser.id)
-                },
-
-                body: JSON.stringify({
-                    user_id: currentUser.id,
-                    product_id: productId,
-                    quantity: 1
-                })
-            });
+            await fetch(
+                `${API_URL}/cart`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-User-Id":
+                            String(currentUser.id)
+                    },
+                    body: JSON.stringify({
+                        user_id: currentUser.id,
+                        product_id: productId,
+                        quantity: 1
+                    })
+                }
+            );
 
         const data =
             await response.json();
@@ -717,9 +694,7 @@ async function addToCart(productId) {
             return;
         }
 
-        alert(
-            "Product added to cart!"
-        );
+        alert("Product added to cart!");
 
         await loadCart();
 
@@ -750,13 +725,15 @@ async function loadCart() {
     try {
 
         const response =
-            await fetch(`${API_URL}/cart`, {
-
-                headers: {
-                    "X-User-Id":
-                        String(currentUser.id)
+            await fetch(
+                `${API_URL}/cart`,
+                {
+                    headers: {
+                        "X-User-Id":
+                            String(currentUser.id)
+                    }
                 }
-            });
+            );
 
         const data =
             await response.json();
@@ -764,13 +741,13 @@ async function loadCart() {
         if (!response.ok || !data.success) {
 
             console.error(
-                data.error || "Failed to load cart"
+                data.error ||
+                "Failed to load cart"
             );
 
             return;
         }
 
-        // Backend returns "items".
         cart =
             Array.isArray(data.items)
                 ? data.items
@@ -815,18 +792,18 @@ function displayCart(total) {
 
         if (totalElement) {
             totalElement.textContent =
-                "0.00";
+                "₹0.00";
         }
 
         return;
     }
 
     container.innerHTML =
-        cart.map(item => {
+        cart.map((item) => {
 
             const product =
                 products.find(
-                    p =>
+                    (p) =>
                         Number(p.id) ===
                         Number(item.product_id)
                 );
@@ -851,22 +828,30 @@ function displayCart(total) {
                     <div>
 
                         <h3>
-                            ${escapeHtml(item.name || "")}
+                            ${escapeHtml(
+                                item.name || ""
+                            )}
                         </h3>
 
                         <p>
                             Price:
-                            ₹${Number(item.price || 0).toFixed(2)}
+                            ₹${Number(
+                                item.price || 0
+                            ).toFixed(2)}
                         </p>
 
                         <p>
                             Quantity:
-                            ${Number(item.quantity || 0)}
+                            ${Number(
+                                item.quantity || 0
+                            )}
                         </p>
 
                         <p>
                             Subtotal:
-                            ₹${Number(item.subtotal || 0).toFixed(2)}
+                            ₹${Number(
+                                item.subtotal || 0
+                            ).toFixed(2)}
                         </p>
 
                     </div>
@@ -877,9 +862,8 @@ function displayCart(total) {
         }).join("");
 
     if (totalElement) {
-
         totalElement.textContent =
-            Number(total || 0).toFixed(2);
+            `₹${Number(total || 0).toFixed(2)}`;
     }
 }
 
@@ -905,20 +889,20 @@ async function checkout() {
     try {
 
         const response =
-            await fetch(`${API_URL}/checkout`, {
-
-                method: "POST",
-
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-User-Id":
-                        String(currentUser.id)
-                },
-
-                body: JSON.stringify({
-                    user_id: currentUser.id
-                })
-            });
+            await fetch(
+                `${API_URL}/checkout`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-User-Id":
+                            String(currentUser.id)
+                    },
+                    body: JSON.stringify({
+                        user_id: currentUser.id
+                    })
+                }
+            );
 
         const data =
             await response.json();
@@ -969,13 +953,15 @@ async function loadOrders() {
     try {
 
         const response =
-            await fetch(`${API_URL}/orders`, {
-
-                headers: {
-                    "X-User-Id":
-                        String(currentUser.id)
+            await fetch(
+                `${API_URL}/orders`,
+                {
+                    headers: {
+                        "X-User-Id":
+                            String(currentUser.id)
+                    }
                 }
-            });
+            );
 
         const data =
             await response.json();
@@ -983,7 +969,8 @@ async function loadOrders() {
         if (!response.ok || !data.success) {
 
             console.error(
-                data.error || "Failed to load orders"
+                data.error ||
+                "Failed to load orders"
             );
 
             return;
@@ -1028,7 +1015,7 @@ function displayOrders() {
     }
 
     container.innerHTML =
-        orders.map(order => {
+        orders.map((order) => {
 
             const total =
                 Number(
@@ -1041,7 +1028,7 @@ function displayOrders() {
                 <div class="order-card">
 
                     <h3>
-                        Order #${order.id}
+                        Order #${Number(order.id)}
                     </h3>
 
                     <p>
@@ -1091,7 +1078,7 @@ function escapeHtml(value) {
 
 document.addEventListener(
     "input",
-    event => {
+    (event) => {
 
         if (
             event.target &&
@@ -1109,7 +1096,7 @@ document.addEventListener(
 
 document.addEventListener(
     "change",
-    event => {
+    (event) => {
 
         if (
             event.target &&
