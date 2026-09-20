@@ -27,13 +27,17 @@ WORKDIR /app
 
 COPY . .
 
-# Drogon's Ubuntu CMake configuration checks for MySQL.
-# Explicitly provide the MySQL development paths so CMake
-# does not fail while configuring Drogon.
+# Verify the MySQL development files exist.
+RUN test -f /usr/include/mysql/mysql.h \
+    && test -f /usr/lib/x86_64-linux-gnu/libmysqlclient.so
+
+# Configure and build BerciiMart.
 RUN cmake -S . -B build \
     -DCMAKE_BUILD_TYPE=Release \
     -DMYSQL_INCLUDE_DIR=/usr/include/mysql \
-    -DMYSQL_LIB_DIR=/usr/lib/x86_64-linux-gnu \
+    -DMYSQL_LIBRARY=/usr/lib/x86_64-linux-gnu/libmysqlclient.so \
+    -DMYSQL_INCLUDE_DIRS=/usr/include/mysql \
+    -DMYSQL_LIBRARIES=/usr/lib/x86_64-linux-gnu/libmysqlclient.so \
     && cmake --build build -j$(nproc)
 
 
