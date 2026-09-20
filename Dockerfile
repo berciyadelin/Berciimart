@@ -27,9 +27,13 @@ WORKDIR /app
 
 COPY . .
 
+# Drogon's Ubuntu CMake configuration checks for MySQL.
+# Explicitly provide the MySQL development paths so CMake
+# does not fail while configuring Drogon.
 RUN cmake -S . -B build \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON \
+    -DMYSQL_INCLUDE_DIR=/usr/include/mysql \
+    -DMYSQL_LIB_DIR=/usr/lib/x86_64-linux-gnu \
     && cmake --build build -j$(nproc)
 
 
@@ -41,30 +45,17 @@ FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y \
-    libpq5 \
-    libargon2-1 \
     libdrogon1t64 \
-    libjsoncpp25 \
+    libargon2-1 \
+    libpq5 \
     libmysqlclient21 \
-    uuid-runtime \
-    zlib1g \
-    libssl3 \
-    libcurl4 \
-    libyaml-cpp0.8 \
-    libsqlite3-0 \
-    libhiredis1.1.0 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Backend executable
 COPY --from=build /app/build/BerciiMart /app/BerciiMart
-
-# Frontend
 COPY --from=build /app/frontend /app/frontend
 
-# Render supplies PORT at runtime.
-# The application itself reads PORT and binds to 0.0.0.0.
 EXPOSE 10000
 
 CMD ["./BerciiMart"]
