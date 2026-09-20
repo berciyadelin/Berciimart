@@ -23,12 +23,16 @@ RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
 FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
-
 RUN apt-get update && apt-get install -y \
-    libpq5 \
-    libargon2-1 \
+    build-essential \
+    cmake \
+    pkg-config \
+    libpq-dev \
+    libargon2-dev \
     libdrogon-dev \
-    libjsoncpp25 \
+    libjsoncpp-dev \
+    uuid-dev \
+    zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
