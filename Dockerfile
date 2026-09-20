@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
     libargon2-dev \
     libdrogon-dev \
     libjsoncpp-dev \
+    default-libmysqlclient-dev \
     uuid-dev \
     zlib1g-dev \
     libssl-dev \
@@ -36,6 +37,7 @@ RUN apt-get update && apt-get install -y \
     libargon2-1 \
     libdrogon1t64 \
     libjsoncpp25 \
+    libmysqlclient21 \
     zlib1g \
     libssl3 \
     libcurl4 \
