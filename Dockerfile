@@ -41,7 +41,7 @@ RUN apt-get update && apt-get install -y \
     libcurl4 \
     libyaml-cpp0.8 \
     libsqlite3-0 \
-    libhiredis0.14 \
+    libhiredis1.1.0 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
