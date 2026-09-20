@@ -83,7 +83,7 @@ int main()
             PGresult* result = PQexec(
                 conn,
                 "SELECT id, name, price, quantity "
-                "FROM public.product "
+                "FROM public.products"
                 "ORDER BY id"
             );
 
@@ -486,7 +486,7 @@ int main()
                 "p.name, p.price, c.quantity, "
                 "(p.price * c.quantity) AS subtotal "
                 "FROM public.cart c "
-                "JOIN public.product p "
+                "JOIN public.products p "
                 "ON c.product_id = p.id "
                 "WHERE c.user_id = $1 "
                 "ORDER BY c.id",
@@ -728,7 +728,7 @@ int main()
                 "p.price, "
                 "p.quantity "
                 "FROM public.cart c "
-                "JOIN public.product p "
+                "JOIN public.products p "
                 "ON c.product_id = p.id "
                 "WHERE c.user_id = $1",
                 1,
@@ -940,7 +940,7 @@ int main()
 
                 PGresult* stockResult = PQexecParams(
                     conn,
-                    "UPDATE public.product "
+                    "UPDATE public.products"
                     "SET quantity = quantity - $1 "
                     "WHERE id = $2",
                     2,
