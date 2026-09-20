@@ -612,7 +612,7 @@ void checkout()
         conn,
         "INSERT INTO public.orders "
         "(user_id, total_amount, status, order_date) "
-        "VALUES ($1, $2, 'PLACED', CURRENT_TIMESTAMP) "
+        "VALUES ($1, $2, 'CONFIRMED', CURRENT_TIMESTAMP) "
         "RETURNING id",
         2,
         nullptr,
