@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>BerciiMart</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <header class="navbar">
+
+        <div class="logo">
+            BerciiMart
+        </div>
+
+        <nav>
+            <button onclick="showSection('products')">
+                Products
+            </button>
+
+            <button onclick="showSection('cart')">
+                Cart
+            </button>
+
+            <button onclick="showSection('orders')">
+                My Orders
+            </button>
+
+            <button onclick="logout()">
+                Logout
+            </button>
+        </nav>
+
+    </header>
+
+
+    <main>
+
+        <!-- LOGIN -->
+
+        <section id="loginSection" class="section active">
+
+            <div class="auth-box">
+
+                <h1>Welcome to BerciiMart</h1>
+
+                <p>
+                    Login to continue shopping
+                </p>
+
+                <form id="loginForm">
+
+                    <input
+                        type="email"
+                        id="loginEmail"
+                        placeholder="Email"
+                        required
+                    >
+
+                    <input
+                        type="password"
+                        id="loginPassword"
+                        placeholder="Password"
+                        required
+                    >
+
+                    <button type="submit">
+                        Login
+                    </button>
+
+                </form>
+
+                <p id="loginMessage"></p>
+
+                <button
+                    class="link-button"
+                    onclick="showRegister()"
+                >
+                    Create an account
+                </button>
+
+            </div>
+
+        </section>
+
+
+        <!-- REGISTER -->
+
+        <section id="registerSection" class="section">
+
+            <div class="auth-box">
+
+                <h1>Create Account</h1>
+
+                <form id="registerForm">
+
+                    <input
+                        type="text"
+                        id="registerName"
+                        placeholder="Name"
+                        required
+                    >
+
+                    <input
+                        type="email"
+                        id="registerEmail"
+                        placeholder="Email"
+                        required
+                    >
+
+                    <input
+                        type="password"
+                        id="registerPassword"
+                        placeholder="Password"
+                        required
+                    >
+
+                    <button type="submit">
+                        Register
+                    </button>
+
+                </form>
+
+                <p id="registerMessage"></p>
+
+                <button
+                    class="link-button"
+                    onclick="showLogin()"
+                >
+                    Already have an account? Login
+                </button>
+
+            </div>
+
+        </section>
+
+
+        <!-- PRODUCTS -->
+
+        <section id="productsSection" class="section">
+
+            <h1>Products</h1>
+
+            <div
+                id="productsContainer"
+                class="product-grid"
+            >
+                <p>
+                    Loading products...
+                </p>
+            </div>
+
+        </section>
+
+
+        <!-- CART -->
+
+        <section id="cartSection" class="section">
+
+            <h1>Shopping Cart</h1>
+
+            <div id="cartContainer">
+
+                <p>
+                    Your cart is empty.
+                </p>
+
+            </div>
+
+            <div class="cart-summary">
+
+                <h2>
+                    Total:
+                    ₹<span id="cartTotal">0.00</span>
+                </h2>
+
+                <button onclick="checkout()">
+                    Checkout
+                </button>
+
+            </div>
+
+        </section>
+
+
+        <!-- ORDERS -->
+
+        <section id="ordersSection" class="section">
+
+            <h1>My Orders</h1>
+
+            <div id="ordersContainer">
+
+                <p>
+                    Loading orders...
+                </p>
+
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <footer>
+
+        <p>
+            © 2026 BerciiMart
+        </p>
+
+    </footer>
+
+
+    <script src="app.js"></script>
+
+</body>
+
+</html>

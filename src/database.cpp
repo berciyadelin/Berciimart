@@ -1,6 +1,7 @@
 #include "../include/database.h"
 #include <argon2.h>
 #include<cstring>
+#include <cstdlib>
 #include <algorithm>
 #include <iostream>
 #include <random>
@@ -18,12 +19,23 @@ int currentUserId = 0;
 
 bool connectDatabase()
 {
-    conn = PQconnectdb(
-        "host=localhost "
-        "port=5432 "
-        "dbname=berciimart "
-        "user=postgres"
-    );
+    const char* databaseUrl = std::getenv("DATABASE_URL");
+
+    if (databaseUrl != nullptr && std::strlen(databaseUrl) > 0)
+    {
+        // Render PostgreSQL connection
+        conn = PQconnectdb(databaseUrl);
+    }
+    else
+    {
+        // Local PostgreSQL connection
+        conn = PQconnectdb(
+            "host=localhost "
+            "port=5432 "
+            "dbname=berciimart "
+            "user=postgres"
+        );
+    }
 
     if (PQstatus(conn) != CONNECTION_OK)
     {

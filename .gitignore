@@ -24,3 +24,4 @@ src/*_backup.cpp
 !database/schema.sql
 !database/seed.sql
 !database/migrations/*.sql
+vcpkg_installed/
