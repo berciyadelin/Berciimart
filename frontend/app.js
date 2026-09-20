@@ -1,359 +1,68 @@
 const API_URL = "/api";
 
-let currentUser = JSON.parse(
-    localStorage.getItem("berciimart_user")
-) || null;
-
 let products = [];
 let cart = [];
 let orders = [];
 
-/*
- * ---------------------------------------------------------
- * PRODUCT IMAGES
- * ---------------------------------------------------------
- */
-
-const productImages = {
-    laptop:
-        "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=800&q=80",
-
-    mouse:
-        "https://images.unsplash.com/photo-1527814050087-3793815479db?auto=format&fit=crop&w=800&q=80",
-
-    keyboard:
-        "https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=800&q=80",
-
-    tshirt:
-        "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=800&q=80",
-
-    pythonBook:
-        "https://images.unsplash.com/photo-1515879218367-8466d910aaa4?auto=format&fit=crop&w=800&q=80",
-
-    cBook:
-        "https://images.unsplash.com/photo-1532012197267-da84d127e765?auto=format&fit=crop&w=800&q=80",
-
-    rice:
-        "https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=800&q=80",
-
-    watch:
-        "https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=800&q=80",
-
-    fallback:
-        "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=800&q=80"
-};
+let currentUser = JSON.parse(
+    localStorage.getItem("berciimart_user")
+) || null;
 
 
-/*
- * ---------------------------------------------------------
- * NORMALIZE PRODUCT NAME
- * ---------------------------------------------------------
- */
+// ===============================
+// PAGE LOAD
+// ===============================
 
-function normalizeProductName(name) {
-    return String(name || "")
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, " ");
-}
+document.addEventListener("DOMContentLoaded", () => {
 
+    const loginForm = document.getElementById("loginForm");
 
-/*
- * ---------------------------------------------------------
- * GET CORRECT PRODUCT IMAGE
- * ---------------------------------------------------------
- */
-
-function getProductImage(product) {
-
-    /*
-     * If the database already has an image URL,
-     * use it first.
-     */
-    if (
-        product &&
-        product.image_url &&
-        String(product.image_url).trim() !== ""
-    ) {
-        return String(product.image_url).trim();
-    }
-
-    const name = normalizeProductName(
-        product?.name
-    );
-
-
-    /*
-     * LAPTOP
-     */
-    if (
-        name === "laptop" ||
-        name.includes("laptop")
-    ) {
-        return productImages.laptop;
+    if (loginForm) {
+        loginForm.addEventListener("submit", function (event) {
+            event.preventDefault();
+            login();
+        });
     }
 
 
-    /*
-     * MOUSE
-     */
-    if (
-        name === "mouse" ||
-        name.includes("mouse")
-    ) {
-        return productImages.mouse;
+    const registerForm = document.getElementById("registerForm");
+
+    if (registerForm) {
+        registerForm.addEventListener("submit", function (event) {
+            event.preventDefault();
+            register();
+        });
     }
 
 
-    /*
-     * KEYBOARD
-     */
-    if (
-        name === "keyboard" ||
-        name.includes("keyboard")
-    ) {
-        return productImages.keyboard;
+    if (currentUser) {
+        showSection("productsSection");
+        loadProducts();
+        loadCart();
+        loadOrders();
+    } else {
+        showSection("loginSection");
     }
+});
 
 
-    /*
-     * T-SHIRT
-     */
-    if (
-        name === "t-shirt" ||
-        name === "tshirt" ||
-        name.includes("t-shirt") ||
-        name.includes("tshirt") ||
-        name.includes("shirt")
-    ) {
-        return productImages.tshirt;
-    }
-
-
-    /*
-     * C PROGRAMMING BOOK
-     */
-    if (
-        name.includes("c programming book") ||
-        name.includes("c programming") ||
-        name.includes("c book")
-    ) {
-        return productImages.cBook;
-    }
-
-
-    /*
-     * PYTHON BOOK
-     */
-    if (
-        name.includes("python book") ||
-        name.includes("python")
-    ) {
-        return productImages.pythonBook;
-    }
-
-
-    /*
-     * RICE
-     */
-    if (
-        name.includes("rice") ||
-        name.includes("rice bag") ||
-        name.includes("rice 5kg") ||
-        name.includes("rice 5 kg")
-    ) {
-        return productImages.rice;
-    }
-
-
-    /*
-     * WATCH
-     *
-     * Only an actual Watch gets the watch image.
-     */
-    if (
-        name === "watch" ||
-        name.includes("watch")
-    ) {
-        return productImages.watch;
-    }
-
-
-    /*
-     * OTHER BOOKS
-     */
-    if (
-        name.includes("book") ||
-        name.includes("programming")
-    ) {
-        return productImages.cBook;
-    }
-
-
-    /*
-     * FALLBACK
-     */
-    return productImages.fallback;
-}
-
-
-/*
- * ---------------------------------------------------------
- * HTML ESCAPING
- * ---------------------------------------------------------
- */
-
-function escapeHtml(value) {
-    return String(value ?? "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-}
-
-
-/*
- * ---------------------------------------------------------
- * PRICE FORMAT
- * ---------------------------------------------------------
- */
-
-function formatPrice(price) {
-
-    const number = Number(price);
-
-    if (!Number.isFinite(number)) {
-        return "₹0.00";
-    }
-
-    return `₹${number.toFixed(2)}`;
-}
-
-
-/*
- * ---------------------------------------------------------
- * CURRENT USER ID
- * ---------------------------------------------------------
- */
-
-function getCurrentUserId() {
-
-    if (!currentUser) {
-        return 0;
-    }
-
-    return Number(
-        currentUser.user_id ||
-        currentUser.id ||
-        currentUser.userId ||
-        0
-    );
-}
-
-
-/*
- * ---------------------------------------------------------
- * CURRENT USER NAME
- * ---------------------------------------------------------
- */
-
-function getCurrentUserName() {
-
-    if (!currentUser) {
-        return "";
-    }
-
-    return (
-        currentUser.name ||
-        currentUser.username ||
-        currentUser.email ||
-        ""
-    );
-}
-
-
-/*
- * ---------------------------------------------------------
- * API REQUEST
- * ---------------------------------------------------------
- */
-
-async function apiRequest(endpoint, options = {}) {
-
-    const config = {
-        ...options,
-        headers: {
-            ...(options.headers || {})
-        }
-    };
-
-
-    if (
-        options.body &&
-        typeof options.body !== "string"
-    ) {
-
-        config.headers["Content-Type"] =
-            "application/json";
-
-        config.body =
-            JSON.stringify(options.body);
-    }
-
-
-    const response = await fetch(
-        `${API_URL}${endpoint}`,
-        config
-    );
-
-
-    let data = {};
-
-    try {
-        data = await response.json();
-    }
-    catch (error) {
-        data = {};
-    }
-
-
-    if (!response.ok) {
-
-        throw new Error(
-            data.message ||
-            data.error ||
-            `Request failed with status ${response.status}`
-        );
-    }
-
-
-    return data;
-}
-
-
-/*
- * ---------------------------------------------------------
- * SHOW SECTION
- * ---------------------------------------------------------
- */
+// ===============================
+// SHOW SECTION
+// ===============================
 
 function showSection(sectionId) {
 
-    document
-        .querySelectorAll(".section")
-        .forEach(section => {
+    const sections = document.querySelectorAll("section");
 
-            section.classList.remove("active");
-        });
+    sections.forEach(section => {
+        section.style.display = "none";
+    });
 
 
-    const section =
-        document.getElementById(sectionId);
-
+    const section = document.getElementById(sectionId);
 
     if (section) {
-        section.classList.add("active");
+        section.style.display = "block";
     }
 
 
@@ -361,11 +70,9 @@ function showSection(sectionId) {
         loadProducts();
     }
 
-
     if (sectionId === "cartSection") {
         loadCart();
     }
-
 
     if (sectionId === "ordersSection") {
         loadOrders();
@@ -373,33 +80,44 @@ function showSection(sectionId) {
 }
 
 
-/*
- * ---------------------------------------------------------
- * LOGIN
- * ---------------------------------------------------------
- */
+// ===============================
+// REGISTER / LOGIN NAVIGATION
+// ===============================
 
-async function login() {
+function showRegister() {
+    showSection("registerSection");
+}
 
-    const emailInput =
-        document.getElementById("loginEmail");
 
-    const passwordInput =
-        document.getElementById("loginPassword");
+function showLogin() {
+    showSection("loginSection");
+}
 
+
+// ===============================
+// REGISTER
+// ===============================
+
+async function register() {
+
+    const name =
+        document.getElementById("registerName").value.trim();
 
     const email =
-        emailInput?.value.trim() || "";
+        document.getElementById("registerEmail").value.trim();
 
     const password =
-        passwordInput?.value || "";
+        document.getElementById("registerPassword").value;
 
 
-    if (!email || !password) {
+    const message =
+        document.getElementById("registerMessage");
 
-        alert(
-            "Please enter email and password."
-        );
+
+    if (!name || !email || !password) {
+
+        message.textContent =
+            "Please fill all fields.";
 
         return;
     }
@@ -407,28 +125,120 @@ async function login() {
 
     try {
 
-        const data =
-            await apiRequest("/login", {
-
+        const response = await fetch(
+            `${API_URL}/register`,
+            {
                 method: "POST",
 
-                body: {
+                headers: {
+                    "Content-Type": "application/json"
+                },
+
+                body: JSON.stringify({
+                    name: name,
                     email: email,
                     password: password
-                }
-            });
+                })
+            }
+        );
 
 
-        if (!data.success) {
+        const data = await response.json();
 
-            throw new Error(
-                data.message ||
-                "Login failed."
-            );
+
+        if (!response.ok || !data.success) {
+
+            message.textContent =
+                data.error || "Registration failed.";
+
+            return;
         }
 
 
-        currentUser = data;
+        message.textContent =
+            "Registration successful! Please login.";
+
+
+        document.getElementById("registerForm").reset();
+
+        setTimeout(() => {
+            showLogin();
+        }, 1000);
+
+    }
+    catch (error) {
+
+        console.error(error);
+
+        message.textContent =
+            "Cannot connect to server.";
+    }
+}
+
+
+// ===============================
+// LOGIN
+// ===============================
+
+async function login() {
+
+    const email =
+        document.getElementById("loginEmail").value.trim();
+
+    const password =
+        document.getElementById("loginPassword").value;
+
+
+    const message =
+        document.getElementById("loginMessage");
+
+
+    if (!email || !password) {
+
+        message.textContent =
+            "Please enter email and password.";
+
+        return;
+    }
+
+
+    try {
+
+        const response = await fetch(
+            `${API_URL}/login`,
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json"
+                },
+
+                body: JSON.stringify({
+                    email: email,
+                    password: password
+                })
+            }
+        );
+
+
+        const data = await response.json();
+
+
+        if (!response.ok || !data.success) {
+
+            message.textContent =
+                data.error || "Login failed.";
+
+            return;
+        }
+
+
+        currentUser = {
+            id: data.user_id,
+            name: data.name,
+            email: data.email,
+            role: data.role
+        };
 
 
         localStorage.setItem(
@@ -437,352 +247,191 @@ async function login() {
         );
 
 
-        alert("Login successful!");
+        message.textContent =
+            "Login successful!";
 
 
-        updateNavigation();
+        document.getElementById("loginForm").reset();
 
 
-        showSection(
-            "productsSection"
-        );
+        showSection("productsSection");
 
-
-        await loadProducts();
-
-    }
-    catch (error) {
-
-        console.error(error);
-
-        alert(
-            error.message ||
-            "Login failed."
-        );
-    }
-}
-
-
-/*
- * ---------------------------------------------------------
- * REGISTER
- * ---------------------------------------------------------
- */
-
-async function register() {
-
-    const nameInput =
-        document.getElementById("registerName");
-
-    const emailInput =
-        document.getElementById("registerEmail");
-
-    const passwordInput =
-        document.getElementById("registerPassword");
-
-
-    const name =
-        nameInput?.value.trim() || "";
-
-    const email =
-        emailInput?.value.trim() || "";
-
-    const password =
-        passwordInput?.value || "";
-
-
-    if (!name || !email || !password) {
-
-        alert(
-            "Please fill in all registration fields."
-        );
-
-        return;
-    }
-
-
-    try {
-
-        const data =
-            await apiRequest("/register", {
-
-                method: "POST",
-
-                body: {
-                    name: name,
-                    email: email,
-                    password: password
-                }
-            });
-
-
-        if (!data.success) {
-
-            throw new Error(
-                data.message ||
-                "Registration failed."
-            );
-        }
-
-
-        alert(
-            "Registration successful! Please login."
-        );
-
-
-        showSection(
-            "loginSection"
-        );
+        loadProducts();
+        loadCart();
+        loadOrders();
 
     }
     catch (error) {
 
         console.error(error);
 
-        alert(
-            error.message ||
-            "Registration failed."
-        );
+        message.textContent =
+            "Cannot connect to server.";
     }
 }
 
 
-/*
- * ---------------------------------------------------------
- * LOGOUT
- * ---------------------------------------------------------
- */
+// ===============================
+// LOGOUT
+// ===============================
 
 function logout() {
 
+    localStorage.removeItem("berciimart_user");
+
     currentUser = null;
 
+    products = [];
     cart = [];
-
     orders = [];
 
-
-    localStorage.removeItem(
-        "berciimart_user"
-    );
-
-
-    updateNavigation();
-
-
-    showSection(
-        "loginSection"
-    );
+    showSection("loginSection");
 }
 
 
-/*
- * ---------------------------------------------------------
- * UPDATE NAVIGATION
- * ---------------------------------------------------------
- */
+// ===============================
+// PRODUCT IMAGE
+// ===============================
 
-function updateNavigation() {
+function getProductImage(productName) {
 
-    const user = currentUser;
+    const name = productName.toLowerCase();
 
 
-    const loginButton =
-        document.getElementById("loginNav");
-
-    const registerButton =
-        document.getElementById("registerNav");
-
-    const logoutButton =
-        document.getElementById("logoutNav");
-
-
-    if (loginButton) {
-
-        loginButton.style.display =
-            user
-                ? "none"
-                : "inline-block";
+    // PHONE
+    if (
+        name.includes("phone") ||
+        name.includes("mobile") ||
+        name.includes("iphone") ||
+        name.includes("samsung")
+    ) {
+        return "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=500&q=80";
     }
 
 
-    if (registerButton) {
-
-        registerButton.style.display =
-            user
-                ? "none"
-                : "inline-block";
+    // LAPTOP
+    if (
+        name.includes("laptop") ||
+        name.includes("computer") ||
+        name.includes("macbook")
+    ) {
+        return "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=500&q=80";
     }
 
 
-    if (logoutButton) {
-
-        logoutButton.style.display =
-            user
-                ? "inline-block"
-                : "none";
+    // HEADPHONES
+    if (
+        name.includes("headphone") ||
+        name.includes("headset") ||
+        name.includes("earphone") ||
+        name.includes("airpod")
+    ) {
+        return "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=500&q=80";
     }
 
 
-    const userDisplay =
-        document.getElementById(
-            "userDisplay"
-        );
-
-
-    if (userDisplay) {
-
-        userDisplay.textContent =
-            user
-                ? `Welcome, ${getCurrentUserName()}`
-                : "";
+    // SHOES
+    if (
+        name.includes("shoe") ||
+        name.includes("sneaker") ||
+        name.includes("footwear")
+    ) {
+        return "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=500&q=80";
     }
+
+
+    // SHIRT / CLOTHES
+    if (
+        name.includes("shirt") ||
+        name.includes("tshirt") ||
+        name.includes("t-shirt") ||
+        name.includes("cloth")
+    ) {
+        return "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=500&q=80";
+    }
+
+
+    // WATCH
+    if (
+        name.includes("watch") ||
+        name.includes("smartwatch")
+    ) {
+        return "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=500&q=80";
+    }
+
+
+    // BAG
+    if (
+        name.includes("bag") ||
+        name.includes("backpack")
+    ) {
+        return "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=500&q=80";
+    }
+
+
+    // CAMERA
+    if (
+        name.includes("camera")
+    ) {
+        return "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=500&q=80";
+    }
+
+
+    // DEFAULT IMAGE
+    return "https://via.placeholder.com/500x350?text=BerciiMart";
 }
 
 
-/*
- * ---------------------------------------------------------
- * LOAD PRODUCTS
- * ---------------------------------------------------------
- */
+// ===============================
+// LOAD PRODUCTS
+// ===============================
 
 async function loadProducts() {
 
     try {
 
+        const response =
+            await fetch(`${API_URL}/products`);
+
+
         const data =
-            await apiRequest("/products");
+            await response.json();
 
 
-        products =
-            Array.isArray(data.products)
-                ? data.products
-                : [];
+        if (!response.ok || !data.success) {
+
+            console.error(
+                data.error || "Failed to load products"
+            );
+
+            return;
+        }
 
 
-        populateCategories();
+        products = data.products || [];
 
 
-        displayProducts(
-            products
-        );
+        displayProducts();
 
     }
     catch (error) {
 
-        console.error(error);
-
-
-        const container =
-            document.getElementById(
-                "productsContainer"
-            );
-
-
-        if (container) {
-
-            container.innerHTML = `
-                <p class="error-message">
-                    Unable to load products.
-                </p>
-            `;
-        }
-
-
         console.error(
             "Product loading error:",
-            error.message
+            error
         );
     }
 }
 
 
-/*
- * ---------------------------------------------------------
- * POPULATE CATEGORIES
- * ---------------------------------------------------------
- */
+// ===============================
+// DISPLAY PRODUCTS
+// ===============================
 
-function populateCategories() {
-
-    const categoryFilter =
-        document.getElementById(
-            "categoryFilter"
-        );
-
-
-    if (!categoryFilter) {
-        return;
-    }
-
-
-    const currentValue =
-        categoryFilter.value;
-
-
-    const categories = [
-        ...new Set(
-            products
-                .map(
-                    product =>
-                        product.category
-                )
-                .filter(
-                    category =>
-                        category
-                )
-        )
-    ].sort();
-
-
-    categoryFilter.innerHTML = `
-        <option value="">
-            All Categories
-        </option>
-    `;
-
-
-    categories.forEach(category => {
-
-        const option =
-            document.createElement(
-                "option"
-            );
-
-
-        option.value =
-            category;
-
-
-        option.textContent =
-            category;
-
-
-        categoryFilter.appendChild(
-            option
-        );
-    });
-
-
-    categoryFilter.value =
-        currentValue;
-}
-
-
-/*
- * ---------------------------------------------------------
- * DISPLAY PRODUCTS
- *
- * Duplicate product names are removed from display.
- * ---------------------------------------------------------
- */
-
-function displayProducts(productList) {
+function displayProducts() {
 
     const container =
-        document.getElementById(
-            "productsContainer"
-        );
+        document.getElementById("productsContainer");
 
 
     if (!container) {
@@ -790,253 +439,153 @@ function displayProducts(productList) {
     }
 
 
-    /*
-     * Remove duplicate product names.
-     *
-     * Example:
-     * Laptop
-     * Laptop
-     * Laptop
-     *
-     * becomes:
-     * Laptop
-     */
-    const uniqueProducts = [];
+    if (products.length === 0) {
 
-    const seenNames =
-        new Set();
-
-
-    productList.forEach(product => {
-
-        const name =
-            normalizeProductName(
-                product.name
-            );
-
-
-        if (!seenNames.has(name)) {
-
-            seenNames.add(name);
-
-            uniqueProducts.push(
-                product
-            );
-        }
-    });
-
-
-    if (!uniqueProducts.length) {
-
-        container.innerHTML = `
-            <p>
-                No products found.
-            </p>
-        `;
+        container.innerHTML =
+            "<p>No products available.</p>";
 
         return;
     }
 
 
     container.innerHTML =
-        uniqueProducts
-            .map(product => {
+        products.map(product => {
 
-                const image =
-                    getProductImage(
-                        product
-                    );
+            const image =
+                getProductImage(product.name);
 
 
-                const stock =
-                    Number(
-                        product.quantity || 0
-                    );
+            return `
+                <div class="product-card">
 
+                    <img
+                        src="${image}"
+                        alt="${product.name}"
+                        class="product-image"
+                        onerror="this.src='https://via.placeholder.com/500x350?text=BerciiMart'"
+                    >
 
-                const disabled =
-                    stock <= 0
-                        ? "disabled"
-                        : "";
+                    <h3>
+                        ${product.name}
+                    </h3>
 
+                    <p>
+                        Price: ₹${Number(product.price).toFixed(2)}
+                    </p>
 
-                const buttonText =
-                    stock <= 0
-                        ? "Out of Stock"
-                        : "Add to Cart";
+                    <p>
+                        Available: ${product.quantity}
+                    </p>
 
+                    <button
+                        onclick="addToCart(${product.id})"
+                        ${product.quantity <= 0 ? "disabled" : ""}
+                    >
+                        ${
+                            product.quantity <= 0
+                            ? "Out of Stock"
+                            : "Add to Cart"
+                        }
+                    </button>
 
-                return `
-                    <div class="product-card">
+                </div>
+            `;
 
-                        <img
-                            src="${escapeHtml(image)}"
-                            alt="${escapeHtml(product.name)}"
-                            class="product-image"
-                            loading="lazy"
-                            onerror="
-                                this.onerror=null;
-                                this.src='${productImages.fallback}';
-                            "
-                        >
-
-                        <h2>
-                            ${escapeHtml(
-                                product.name
-                            )}
-                        </h2>
-
-                        <p>
-                            ${escapeHtml(
-                                product.description ||
-                                "No description available."
-                            )}
-                        </p>
-
-                        <p class="price">
-                            ${formatPrice(
-                                product.price
-                            )}
-                        </p>
-
-                        <p>
-                            Category:
-                            ${escapeHtml(
-                                product.category ||
-                                "General"
-                            )}
-                        </p>
-
-                        <p>
-                            Stock:
-                            ${stock}
-                        </p>
-
-                        <button
-                            ${disabled}
-                            onclick="addToCart(
-                                ${Number(product.id)}
-                            )"
-                        >
-                            ${buttonText}
-                        </button>
-
-                    </div>
-                `;
-
-            })
-            .join("");
+        }).join("");
 }
 
 
-/*
- * ---------------------------------------------------------
- * FILTER PRODUCTS
- * ---------------------------------------------------------
- */
+// ===============================
+// SEARCH PRODUCTS
+// ===============================
 
-function filterProducts() {
+function searchProducts() {
 
     const searchInput =
-        document.getElementById(
-            "productSearch"
-        );
+        document.getElementById("productSearch");
 
 
-    const categoryFilter =
-        document.getElementById(
-            "categoryFilter"
-        );
+    if (!searchInput) {
+        return;
+    }
 
 
-    const searchTerm =
-        (
-            searchInput?.value || ""
-        )
-            .trim()
-            .toLowerCase();
+    const search =
+        searchInput.value.toLowerCase().trim();
 
 
-    const category =
-        categoryFilter?.value || "";
+    const container =
+        document.getElementById("productsContainer");
 
 
     const filtered =
-        products.filter(product => {
-
-            const name =
-                String(
-                    product.name || ""
-                ).toLowerCase();
-
-
-            const description =
-                String(
-                    product.description || ""
-                ).toLowerCase();
+        products.filter(product =>
+            product.name
+                .toLowerCase()
+                .includes(search)
+        );
 
 
-            const productCategory =
-                String(
-                    product.category || ""
-                );
+    if (filtered.length === 0) {
+
+        container.innerHTML =
+            "<p>No products found.</p>";
+
+        return;
+    }
 
 
-            const matchesSearch =
-                !searchTerm ||
-                name.includes(searchTerm) ||
-                description.includes(searchTerm);
+    container.innerHTML =
+        filtered.map(product => {
+
+            const image =
+                getProductImage(product.name);
 
 
-            const matchesCategory =
-                !category ||
-                productCategory === category;
+            return `
+                <div class="product-card">
 
+                    <img
+                        src="${image}"
+                        alt="${product.name}"
+                        class="product-image"
+                        onerror="this.src='https://via.placeholder.com/500x350?text=BerciiMart'"
+                    >
 
-            return (
-                matchesSearch &&
-                matchesCategory
-            );
-        });
+                    <h3>${product.name}</h3>
 
+                    <p>
+                        Price: ₹${Number(product.price).toFixed(2)}
+                    </p>
 
-    displayProducts(
-        filtered
-    );
+                    <p>
+                        Available: ${product.quantity}
+                    </p>
+
+                    <button
+                        onclick="addToCart(${product.id})"
+                    >
+                        Add to Cart
+                    </button>
+
+                </div>
+            `;
+
+        }).join("");
 }
 
 
-/*
- * ---------------------------------------------------------
- * ADD TO CART
- * ---------------------------------------------------------
- */
+// ===============================
+// ADD TO CART
+// ===============================
 
 async function addToCart(productId) {
 
     if (!currentUser) {
 
-        alert(
-            "Please login first."
-        );
+        alert("Please login first.");
 
-        showSection(
-            "loginSection"
-        );
-
-        return;
-    }
-
-
-    const userId =
-        getCurrentUserId();
-
-
-    if (!userId) {
-
-        alert(
-            "Unable to identify the logged-in user."
-        );
+        showLogin();
 
         return;
     }
@@ -1044,34 +593,44 @@ async function addToCart(productId) {
 
     try {
 
-        const data =
-            await apiRequest("/cart", {
+        const response =
+            await fetch(`${API_URL}/cart`, {
 
                 method: "POST",
 
-                body: {
-                    user_id: userId,
-                    product_id: Number(productId),
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-User-Id":
+                        String(currentUser.id)
+                },
+
+                body: JSON.stringify({
+                    user_id: currentUser.id,
+                    product_id: productId,
                     quantity: 1
-                }
+                })
             });
 
 
-        if (!data.success) {
+        const data =
+            await response.json();
 
-            throw new Error(
-                data.message ||
-                "Unable to add product to cart."
+
+        if (!response.ok || !data.success) {
+
+            alert(
+                data.error ||
+                "Failed to add product to cart."
             );
+
+            return;
         }
 
 
-        alert(
-            "Product added to cart."
-        );
+        alert("Product added to cart!");
 
 
-        await loadCart();
+        loadCart();
 
     }
     catch (error) {
@@ -1079,103 +638,77 @@ async function addToCart(productId) {
         console.error(error);
 
         alert(
-            error.message ||
-            "Unable to add product to cart."
+            "Cannot connect to server."
         );
     }
 }
 
 
-/*
- * ---------------------------------------------------------
- * LOAD CART
- * ---------------------------------------------------------
- */
+// ===============================
+// LOAD CART
+// ===============================
 
 async function loadCart() {
 
     if (!currentUser) {
-
-        cart = [];
-
-        displayCart();
-
-        return;
-    }
-
-
-    const userId =
-        getCurrentUserId();
-
-
-    if (!userId) {
-
-        cart = [];
-
-        displayCart();
-
         return;
     }
 
 
     try {
 
-        const data =
-            await apiRequest(
-                "/cart",
-                {
-                    method: "GET",
+        const response =
+            await fetch(`${API_URL}/cart`, {
 
-                    headers: {
-                        "X-User-Id":
-                            String(userId)
-                    }
+                headers: {
+                    "X-User-Id":
+                        String(currentUser.id)
                 }
+            });
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok || !data.success) {
+
+            console.error(
+                data.error || "Failed to load cart"
             );
 
-
-        cart =
-            Array.isArray(data.items)
-                ? data.items
-                : Array.isArray(data.cart)
-                    ? data.cart
-                    : [];
+            return;
+        }
 
 
-        displayCart();
+        cart = data.cart || [];
+
+
+        displayCart(data.total || 0);
 
     }
     catch (error) {
 
-        console.error(error);
-
-
-        cart = [];
-
-
-        displayCart();
-
-
-        alert(
-            error.message ||
-            "Unable to load cart."
+        console.error(
+            "Cart error:",
+            error
         );
     }
 }
 
 
-/*
- * ---------------------------------------------------------
- * DISPLAY CART
- * ---------------------------------------------------------
- */
+// ===============================
+// DISPLAY CART
+// ===============================
 
-function displayCart() {
+function displayCart(total) {
 
     const container =
-        document.getElementById(
-            "cartContainer"
-        );
+        document.getElementById("cartContainer");
+
+
+    const totalElement =
+        document.getElementById("cartTotal");
 
 
     if (!container) {
@@ -1183,197 +716,241 @@ function displayCart() {
     }
 
 
-    if (!cart.length) {
+    if (cart.length === 0) {
 
-        container.innerHTML = `
-            <div class="cart-item">
-                <p>
-                    Your cart is empty.
-                </p>
-            </div>
-        `;
+        container.innerHTML =
+            "<p>Your cart is empty.</p>";
+
+        if (totalElement) {
+            totalElement.textContent = "₹0.00";
+        }
 
         return;
     }
 
 
-    let total = 0;
-
-
     container.innerHTML =
-        cart
-            .map(item => {
+        cart.map(item => {
 
-                const price =
-                    Number(
-                        item.price || 0
-                    );
-
-
-                const quantity =
-                    Number(
-                        item.quantity || 0
-                    );
+            const product =
+                products.find(
+                    p => p.id === item.product_id
+                );
 
 
-                const itemTotal =
-                    price * quantity;
+            const image =
+                product
+                ? getProductImage(product.name)
+                : getProductImage(item.name);
 
 
-                total += itemTotal;
+            return `
+                <div class="cart-item">
 
+                    <img
+                        src="${image}"
+                        alt="${item.name}"
+                        class="cart-image"
+                    >
 
-                return `
-                    <div class="cart-item">
+                    <div>
 
                         <h3>
-                            ${escapeHtml(
-                                item.name ||
-                                "Product"
-                            )}
+                            ${item.name}
                         </h3>
 
                         <p>
-                            Price:
-                            ${formatPrice(
-                                price
-                            )}
+                            Price: ₹${Number(item.price).toFixed(2)}
                         </p>
 
                         <p>
-                            Quantity:
-                            ${quantity}
+                            Quantity: ${item.quantity}
                         </p>
 
                         <p>
-                            Item Total:
-                            ${formatPrice(
-                                itemTotal
-                            )}
+                            Subtotal:
+                            ₹${Number(item.subtotal).toFixed(2)}
                         </p>
 
                     </div>
-                `;
 
-            })
-            .join("");
+                </div>
+            `;
+
+        }).join("");
 
 
-    container.innerHTML += `
-        <div class="cart-summary">
+    if (totalElement) {
 
-            <h2>
-                Total:
-                ${formatPrice(total)}
-            </h2>
-
-            <button
-                onclick="checkout()"
-            >
-                Checkout
-            </button>
-
-        </div>
-    `;
+        totalElement.textContent =
+            `₹${Number(total).toFixed(2)}`;
+    }
 }
 
 
-/*
- * ---------------------------------------------------------
- * CHECKOUT
- * ---------------------------------------------------------
- */
+// ===============================
+// LOAD ORDERS
+// ===============================
+
+async function loadOrders() {
+
+    if (!currentUser) {
+        return;
+    }
+
+
+    try {
+
+        const response =
+            await fetch(`${API_URL}/orders`, {
+
+                headers: {
+                    "X-User-Id":
+                        String(currentUser.id)
+                }
+            });
+
+
+        if (!response.ok) {
+            return;
+        }
+
+
+        const data =
+            await response.json();
+
+
+        if (data.success) {
+
+            orders =
+                data.orders || [];
+
+            displayOrders();
+        }
+
+    }
+    catch (error) {
+
+        console.error(
+            "Orders error:",
+            error
+        );
+    }
+}
+
+
+// ===============================
+// DISPLAY ORDERS
+// ===============================
+
+function displayOrders() {
+
+    const container =
+        document.getElementById("ordersContainer");
+
+
+    if (!container) {
+        return;
+    }
+
+
+    if (orders.length === 0) {
+
+        container.innerHTML =
+            "<p>No orders found.</p>";
+
+        return;
+    }
+
+
+    container.innerHTML =
+        orders.map(order => {
+
+            return `
+                <div class="order-card">
+
+                    <h3>
+                        Order #${order.id}
+                    </h3>
+
+                    <p>
+                        Total:
+                        ₹${Number(order.total || 0).toFixed(2)}
+                    </p>
+
+                    <p>
+                        Status:
+                        ${order.status || "Placed"}
+                    </p>
+
+                </div>
+            `;
+
+        }).join("");
+}
+
+
+// ===============================
+// CHECKOUT
+// ===============================
 
 async function checkout() {
 
     if (!currentUser) {
 
-        alert(
-            "Please login first."
-        );
+        alert("Please login first.");
 
         return;
     }
 
 
-    const userId =
-        getCurrentUserId();
+    if (cart.length === 0) {
 
+        alert("Your cart is empty.");
 
-    if (!userId) {
-
-        alert(
-            "Unable to identify the logged-in user."
-        );
-
-        return;
-    }
-
-
-    if (!cart.length) {
-
-        alert(
-            "Your cart is empty."
-        );
-
-        return;
-    }
-
-
-    const confirmed =
-        confirm(
-            "Proceed with mock payment and checkout?"
-        );
-
-
-    if (!confirmed) {
         return;
     }
 
 
     try {
 
+        const response =
+            await fetch(`${API_URL}/checkout`, {
+
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json"
+                },
+
+                body: JSON.stringify({
+                    user_id: currentUser.id
+                })
+            });
+
+
         const data =
-            await apiRequest(
-                "/checkout",
-                {
-
-                    method: "POST",
-
-                    body: {
-                        user_id: userId
-                    }
-                }
-            );
+            await response.json();
 
 
-        if (!data.success) {
+        if (!response.ok || !data.success) {
 
-            throw new Error(
-                data.message ||
+            alert(
+                data.error ||
                 "Checkout failed."
             );
+
+            return;
         }
 
 
-        alert(
-            `Payment confirmed!\nOrder ID: ${data.order_id}`
-        );
+        alert("Order placed successfully!");
 
 
-        cart = [];
+        loadCart();
+        loadOrders();
 
-
-        await loadCart();
-
-        await loadProducts();
-
-        await loadOrders();
-
-
-        showSection(
-            "ordersSection"
-        );
+        showSection("ordersSection");
 
     }
     catch (error) {
@@ -1381,223 +958,122 @@ async function checkout() {
         console.error(error);
 
         alert(
-            error.message ||
-            "Checkout failed."
+            "Cannot connect to server."
         );
     }
 }
 
 
-/*
- * ---------------------------------------------------------
- * LOAD ORDERS
- * ---------------------------------------------------------
- */
+// ===============================
+// CATEGORY FILTER
+// ===============================
 
-async function loadOrders() {
+function filterProducts() {
 
-    if (!currentUser) {
+    const filter =
+        document.getElementById("categoryFilter");
 
-        orders = [];
 
-        displayOrders();
+    if (!filter) {
+        return;
+    }
+
+
+    const value =
+        filter.value.toLowerCase();
+
+
+    if (!value) {
+
+        displayProducts();
 
         return;
     }
 
 
-    const userId =
-        getCurrentUserId();
-
-
-    if (!userId) {
-
-        orders = [];
-
-        displayOrders();
-
-        return;
-    }
-
-
-    try {
-
-        const data =
-            await apiRequest(
-                "/orders",
-                {
-
-                    method: "GET",
-
-                    headers: {
-                        "X-User-Id":
-                            String(userId)
-                    }
-                }
-            );
-
-
-        orders =
-            Array.isArray(data.orders)
-                ? data.orders
-                : [];
-
-
-        displayOrders();
-
-    }
-    catch (error) {
-
-        console.error(error);
-
-
-        orders = [];
-
-
-        displayOrders();
-
-
-        alert(
-            error.message ||
-            "Unable to load orders."
+    const filtered =
+        products.filter(product =>
+            product.name
+                .toLowerCase()
+                .includes(value)
         );
-    }
-}
 
-
-/*
- * ---------------------------------------------------------
- * DISPLAY ORDERS
- * ---------------------------------------------------------
- */
-
-function displayOrders() {
 
     const container =
-        document.getElementById(
-            "ordersContainer"
-        );
+        document.getElementById("productsContainer");
 
 
-    if (!container) {
-        return;
-    }
+    if (filtered.length === 0) {
 
-
-    if (!orders.length) {
-
-        container.innerHTML = `
-            <div class="order-card">
-                <p>
-                    No orders found.
-                </p>
-            </div>
-        `;
+        container.innerHTML =
+            "<p>No products found.</p>";
 
         return;
     }
 
 
     container.innerHTML =
-        orders
-            .map(order => {
+        filtered.map(product => {
 
-                return `
-                    <div class="order-card">
+            const image =
+                getProductImage(product.name);
 
-                        <h3>
-                            Order #${escapeHtml(
-                                order.id
-                            )}
-                        </h3>
 
-                        <p>
-                            Total:
-                            ${formatPrice(
-                                order.total_amount
-                            )}
-                        </p>
+            return `
+                <div class="product-card">
 
-                        <p>
-                            Status:
-                            ${escapeHtml(
-                                order.status ||
-                                "PENDING"
-                            )}
-                        </p>
+                    <img
+                        src="${image}"
+                        alt="${product.name}"
+                        class="product-image"
+                    >
 
-                        <p>
-                            Date:
-                            ${escapeHtml(
-                                order.order_date ||
-                                order.created_at ||
-                                ""
-                            )}
-                        </p>
+                    <h3>${product.name}</h3>
 
-                    </div>
-                `;
+                    <p>
+                        Price:
+                        ₹${Number(product.price).toFixed(2)}
+                    </p>
 
-            })
-            .join("");
+                    <p>
+                        Available:
+                        ${product.quantity}
+                    </p>
+
+                    <button
+                        onclick="addToCart(${product.id})"
+                    >
+                        Add to Cart
+                    </button>
+
+                </div>
+            `;
+
+        }).join("");
 }
 
 
-/*
- * ---------------------------------------------------------
- * PAGE INITIALIZATION
- * ---------------------------------------------------------
- */
+// ===============================
+// SEARCH EVENT
+// ===============================
 
-document.addEventListener(
-    "DOMContentLoaded",
-    () => {
+document.addEventListener("input", function(event) {
 
-        updateNavigation();
-
-
-        /*
-         * Search.
-         */
-        const searchInput =
-            document.getElementById(
-                "productSearch"
-            );
-
-
-        if (searchInput) {
-
-            searchInput.addEventListener(
-                "input",
-                filterProducts
-            );
-        }
-
-
-        /*
-         * Category filter.
-         */
-        const categoryFilter =
-            document.getElementById(
-                "categoryFilter"
-            );
-
-
-        if (categoryFilter) {
-
-            categoryFilter.addEventListener(
-                "change",
-                filterProducts
-            );
-        }
-
-
-        /*
-         * Load products if already logged in.
-         */
-        if (currentUser) {
-
-            loadProducts();
-        }
+    if (event.target.id === "productSearch") {
+        searchProducts();
     }
-);
+
+});
+
+
+// ===============================
+// CATEGORY EVENT
+// ===============================
+
+document.addEventListener("change", function(event) {
+
+    if (event.target.id === "categoryFilter") {
+        filterProducts();
+    }
+
+});
