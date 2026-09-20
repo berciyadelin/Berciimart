@@ -1,6 +1,24 @@
+
 const API_URL = "/api";
 
 let currentUser = null;
+let allProducts = [];
+
+
+// ==============================
+// PRODUCT IMAGES
+// ==============================
+
+const productImages = {
+    "Laptop":
+        "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=800&q=80",
+
+    "Smartphone":
+        "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=800&q=80",
+
+    "Headphones":
+        "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80"
+};
 
 
 // ==============================
@@ -13,7 +31,8 @@ function showSection(section) {
         element.classList.remove("active");
     });
 
-    const target = document.getElementById(section + "Section");
+    const target =
+        document.getElementById(section + "Section");
 
     if (target) {
         target.classList.add("active");
@@ -190,27 +209,184 @@ async function loadProducts() {
         const response =
             await fetch(`${API_URL}/products`);
 
-        const products =
+        const data =
             await response.json();
 
         if (!response.ok) {
-            throw new Error("Unable to load products");
+            throw new Error(
+                data.message || "Unable to load products"
+            );
         }
 
-        container.innerHTML = "";
+        const products =
+            data.products || [];
 
-        products.forEach(product => {
+        allProducts =
+            products;
 
-            const card =
-                document.createElement("div");
+        populateCategories();
 
-            card.className =
-                "product-card";
+        displayProducts();
 
-            card.innerHTML = `
-                <h2>${product.name}</h2>
+    } catch (error) {
 
-                <p>${product.description || ""}</p>
+        console.error(
+            "Product loading error:",
+            error
+        );
+
+        container.innerHTML =
+            "<p>Unable to load products.</p>";
+
+    }
+}
+
+
+// ==============================
+// CATEGORY FILTER
+// ==============================
+
+function populateCategories() {
+
+    const categoryFilter =
+        document.getElementById("categoryFilter");
+
+    if (!categoryFilter) {
+        return;
+    }
+
+    const currentValue =
+        categoryFilter.value;
+
+    const categories = [
+        ...new Set(
+            allProducts
+                .map(product => product.category)
+                .filter(category => category)
+        )
+    ];
+
+    categoryFilter.innerHTML = `
+        <option value="">
+            All Categories
+        </option>
+    `;
+
+    categories.forEach(category => {
+
+        const option =
+            document.createElement("option");
+
+        option.value =
+            category;
+
+        option.textContent =
+            category;
+
+        categoryFilter.appendChild(
+            option
+        );
+
+    });
+
+    categoryFilter.value =
+        currentValue;
+}
+
+
+// ==============================
+// DISPLAY PRODUCTS
+// ==============================
+
+function displayProducts() {
+
+    const container =
+        document.getElementById("productsContainer");
+
+    const searchInput =
+        document.getElementById("productSearch");
+
+    const categoryFilter =
+        document.getElementById("categoryFilter");
+
+    const searchTerm =
+        searchInput
+            ? searchInput.value
+                .toLowerCase()
+                .trim()
+            : "";
+
+    const selectedCategory =
+        categoryFilter
+            ? categoryFilter.value
+            : "";
+
+    const filteredProducts =
+        allProducts.filter(product => {
+
+            const productName =
+                (product.name || "")
+                    .toLowerCase();
+
+            const description =
+                (product.description || "")
+                    .toLowerCase();
+
+            const matchesSearch =
+                !searchTerm ||
+                productName.includes(searchTerm) ||
+                description.includes(searchTerm);
+
+            const matchesCategory =
+                !selectedCategory ||
+                product.category === selectedCategory;
+
+            return (
+                matchesSearch &&
+                matchesCategory
+            );
+
+        });
+
+    container.innerHTML = "";
+
+    if (filteredProducts.length === 0) {
+
+        container.innerHTML =
+            "<p>No products found.</p>";
+
+        return;
+    }
+
+    filteredProducts.forEach(product => {
+
+        const card =
+            document.createElement("div");
+
+        card.className =
+            "product-card";
+
+        const image =
+            productImages[product.name] ||
+            "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=800&q=80";
+
+        card.innerHTML = `
+            <img
+                src="${image}"
+                alt="${product.name}"
+                class="product-image"
+                loading="lazy"
+            >
+
+            <div class="product-info">
+
+                <h2>
+                    ${product.name}
+                </h2>
+
+                <p>
+                    ${product.description || ""}
+                </p>
 
                 <p class="price">
                     ₹${Number(product.price).toFixed(2)}
@@ -224,18 +400,43 @@ async function loadProducts() {
                     onclick="addToCart(${product.id})">
                     Add to Cart
                 </button>
-            `;
 
-            container.appendChild(card);
+            </div>
+        `;
 
-        });
+        container.appendChild(card);
 
-    } catch (error) {
+    });
+}
 
-        container.innerHTML =
-            "<p>Unable to load products.</p>";
 
-    }
+// ==============================
+// SEARCH + FILTER EVENTS
+// ==============================
+
+const productSearch =
+    document.getElementById("productSearch");
+
+if (productSearch) {
+
+    productSearch.addEventListener(
+        "input",
+        displayProducts
+    );
+
+}
+
+
+const categoryFilter =
+    document.getElementById("categoryFilter");
+
+if (categoryFilter) {
+
+    categoryFilter.addEventListener(
+        "change",
+        displayProducts
+    );
+
 }
 
 
@@ -264,17 +465,27 @@ async function addToCart(productId) {
                 }
             );
 
+        const data =
+            await response.json();
+
         if (!response.ok) {
+
             throw new Error(
+                data.message ||
                 "Unable to add product"
             );
+
         }
 
-        alert("Product added to cart.");
+        alert(
+            "Product added to cart."
+        );
 
     } catch (error) {
 
-        alert(error.message);
+        alert(
+            error.message
+        );
 
     }
 }
@@ -283,23 +494,51 @@ async function addToCart(productId) {
 async function loadCart() {
 
     const container =
-        document.getElementById("cartContainer");
+        document.getElementById(
+            "cartContainer"
+        );
 
     try {
 
         const response =
-            await fetch(`${API_URL}/cart`);
+            await fetch(
+                `${API_URL}/cart`
+            );
 
-        const cart =
+        const data =
             await response.json();
 
         if (!response.ok) {
-            throw new Error("Unable to load cart");
+
+            throw new Error(
+                data.message ||
+                "Unable to load cart"
+            );
+
         }
+
+        const cart =
+            data.cart || data;
 
         container.innerHTML = "";
 
         let total = 0;
+
+        if (
+            !Array.isArray(cart) ||
+            cart.length === 0
+        ) {
+
+            container.innerHTML =
+                "<p>Your cart is empty.</p>";
+
+            document.getElementById(
+                "cartTotal"
+            ).textContent =
+                "0.00";
+
+            return;
+        }
 
         cart.forEach(item => {
 
@@ -308,16 +547,21 @@ async function loadCart() {
                 Number(item.quantity);
 
             const element =
-                document.createElement("div");
+                document.createElement(
+                    "div"
+                );
 
             element.className =
                 "cart-item";
 
             element.innerHTML = `
-                <h3>${item.name}</h3>
+                <h3>
+                    ${item.name}
+                </h3>
 
                 <p>
-                    Quantity: ${item.quantity}
+                    Quantity:
+                    ${item.quantity}
                 </p>
 
                 <p>
@@ -328,7 +572,9 @@ async function loadCart() {
                 </p>
             `;
 
-            container.appendChild(element);
+            container.appendChild(
+                element
+            );
 
         });
 
@@ -338,6 +584,11 @@ async function loadCart() {
             total.toFixed(2);
 
     } catch (error) {
+
+        console.error(
+            "Cart loading error:",
+            error
+        );
 
         container.innerHTML =
             "<p>Unable to load cart.</p>";
@@ -366,9 +617,12 @@ async function checkout() {
             await response.json();
 
         if (!response.ok) {
+
             throw new Error(
-                data.message || "Checkout failed"
+                data.message ||
+                "Checkout failed"
             );
+
         }
 
         alert(
@@ -379,7 +633,9 @@ async function checkout() {
 
     } catch (error) {
 
-        alert(error.message);
+        alert(
+            error.message
+        );
 
     }
 }
@@ -392,26 +648,51 @@ async function checkout() {
 async function loadOrders() {
 
     const container =
-        document.getElementById("ordersContainer");
+        document.getElementById(
+            "ordersContainer"
+        );
 
     try {
 
         const response =
-            await fetch(`${API_URL}/orders`);
+            await fetch(
+                `${API_URL}/orders`
+            );
 
-        const orders =
+        const data =
             await response.json();
 
         if (!response.ok) {
-            throw new Error("Unable to load orders");
+
+            throw new Error(
+                data.message ||
+                "Unable to load orders"
+            );
+
         }
 
+        const orders =
+            data.orders || data;
+
         container.innerHTML = "";
+
+        if (
+            !Array.isArray(orders) ||
+            orders.length === 0
+        ) {
+
+            container.innerHTML =
+                "<p>No orders found.</p>";
+
+            return;
+        }
 
         orders.forEach(order => {
 
             const element =
-                document.createElement("div");
+                document.createElement(
+                    "div"
+                );
 
             element.className =
                 "order-card";
@@ -423,19 +704,29 @@ async function loadOrders() {
 
                 <p>
                     Total:
-                    ₹${Number(order.total_amount).toFixed(2)}
+                    ₹${Number(
+                        order.total_amount
+                    ).toFixed(2)}
                 </p>
 
                 <p>
-                    Status: ${order.status}
+                    Status:
+                    ${order.status}
                 </p>
             `;
 
-            container.appendChild(element);
+            container.appendChild(
+                element
+            );
 
         });
 
     } catch (error) {
+
+        console.error(
+            "Orders loading error:",
+            error
+        );
 
         container.innerHTML =
             "<p>Unable to load orders.</p>";
@@ -465,14 +756,30 @@ function logout() {
 // ==============================
 
 const savedUser =
-    localStorage.getItem("berciimart_user");
+    localStorage.getItem(
+        "berciimart_user"
+    );
 
 if (savedUser) {
 
-    currentUser =
-        JSON.parse(savedUser);
+    try {
 
-    showSection("products");
+        currentUser =
+            JSON.parse(savedUser);
+
+        showSection(
+            "products"
+        );
+
+    } catch (error) {
+
+        localStorage.removeItem(
+            "berciimart_user"
+        );
+
+        showLogin();
+
+    }
 
 } else {
 
