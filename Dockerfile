@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     libargon2-dev \
     libdrogon-dev \
+    libjsoncpp-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -27,6 +28,7 @@ RUN apt-get update && apt-get install -y \
     libpq5 \
     libargon2-1 \
     libdrogon-dev \
+    libjsoncpp25 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
