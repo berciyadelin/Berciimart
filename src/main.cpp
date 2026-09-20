@@ -1,6 +1,5 @@
 #include <drogon/drogon.h>
 #include "../include/database.h"
-
 #include <argon2.h>
 #include <cstdlib>
 #include <iostream>
@@ -8,84 +7,71 @@
 
 using namespace drogon;
 
-// ------------------------------------------------------------
-// Helper: get current user ID from HTTP header
-// ------------------------------------------------------------
+// =====================================================
+// HELPER FUNCTIONS
+// =====================================================
 
 int getUserId(const HttpRequestPtr& req)
 {
-    std::string userId = req->getHeader("X-User-Id");
+    auto header = req->getHeader("X-User-Id");
 
-    if (userId.empty())
-    {
-        return -1;
-    }
+    if (header.empty())
+        return 0;
 
     try
     {
-        return std::stoi(userId);
+        return std::stoi(header);
     }
     catch (...)
     {
-        return -1;
+        return 0;
     }
 }
-
-// ------------------------------------------------------------
-// Helper: create JSON error response
-// ------------------------------------------------------------
 
 HttpResponsePtr jsonError(
     const std::string& message,
     HttpStatusCode status = k400BadRequest)
 {
-    Json::Value json;
-    json["success"] = false;
-    json["message"] = message;
+    Json::Value body;
 
-    auto response = HttpResponse::newHttpJsonResponse(json);
+    body["success"] = false;
+    body["error"] = message;
+
+    auto response = HttpResponse::newHttpJsonResponse(body);
     response->setStatusCode(status);
 
     return response;
 }
 
-// ------------------------------------------------------------
-// Main
-// ------------------------------------------------------------
+bool isValidUserId(int userId)
+{
+    return userId > 0;
+}
+
+// =====================================================
+// MAIN
+// =====================================================
 
 int main()
 {
-    // --------------------------------------------------------
     // Connect to PostgreSQL
-    // --------------------------------------------------------
-
     if (!connectDatabase())
     {
-        std::cerr << "Database connection failed.\n";
+        std::cerr << "Database connection failed!" << std::endl;
         return 1;
     }
 
-    std::cout << "Database connected successfully!\n";
+    std::cout << "Database connected successfully!" << std::endl;
 
-    // --------------------------------------------------------
-    // Serve frontend
-    // --------------------------------------------------------
-
+    // Frontend folder
     app().setDocumentRoot("./frontend");
 
-    // --------------------------------------------------------
-    // Use one Drogon worker thread.
-    //
-    // The current database.cpp uses a shared PostgreSQL
-    // connection, so keeping one HTTP worker avoids concurrent
-    // access to that connection.
-    // --------------------------------------------------------
-
+    // Use one thread
     app().setThreadNum(1);
 
-    // ========================================================
-    // GET /api/products
-    // ========================================================
+    // =================================================
+    // GET PRODUCTS
+    // =================================================
 
     app().registerHandler(
         "/api/products",
@@ -94,27 +80,36 @@ int main()
         {
             (void)req;
 
-            Json::Value products(Json::arrayValue);
-
-            const char* query =
-                "SELECT id, name, price, quantity, category_id "
-                "FROM public.products "
-                "ORDER BY id";
-
-            PGresult* result = PQexec(conn, query);
+            PGresult* result = PQexec(
+                conn,
+                "SELECT id, name, price, quantity "
+                "FROM public.product "
+                "ORDER BY id"
+            );
 
             if (PQresultStatus(result) != PGRES_TUPLES_OK)
             {
+                std::string error = PQerrorMessage(conn);
+
                 PQclear(result);
+
                 callback(jsonError(
-                    "Failed to load products.",
-                    k500InternalServerError));
+                    "Failed to load products: " + error,
+                    k500InternalServerError
+                ));
+
                 return;
             }
 
+            Json::Value response;
+
+            response["success"] = true;
+            response["products"] =
+                Json::Value(Json::arrayValue);
+
             int rows = PQntuples(result);
 
-            for (int i = 0; i < rows; ++i)
+            for (int i = 0; i < rows; i++)
             {
                 Json::Value product;
 
@@ -130,33 +125,21 @@ int main()
                 product["quantity"] =
                     std::stoi(PQgetvalue(result, i, 3));
 
-                if (PQgetisnull(result, i, 4))
-                {
-                    product["category_id"] = Json::nullValue;
-                }
-                else
-                {
-                    product["category_id"] =
-                        std::stoi(PQgetvalue(result, i, 4));
-                }
-
-                products.append(product);
+                response["products"].append(product);
             }
 
             PQclear(result);
 
-            Json::Value responseJson;
-            responseJson["success"] = true;
-            responseJson["products"] = products;
-
             callback(
-                HttpResponse::newHttpJsonResponse(responseJson));
+                HttpResponse::newHttpJsonResponse(response)
+            );
         },
-        {Get});
+        {Get}
+    );
 
-    // ========================================================
-    // POST /api/register
-    // ========================================================
+    // =================================================
+    // REGISTER
+    // =================================================
 
     app().registerHandler(
         "/api/register",
@@ -167,56 +150,76 @@ int main()
 
             if (!json)
             {
-                callback(jsonError("Invalid JSON."));
+                callback(jsonError("Invalid JSON"));
                 return;
             }
 
-            std::string username =
-                (*json)["username"].asString();
+            std::string username;
+
+            if ((*json).isMember("username"))
+            {
+                username =
+                    (*json)["username"].asString();
+            }
+            else if ((*json).isMember("name"))
+            {
+                username =
+                    (*json)["name"].asString();
+            }
 
             std::string email =
-                (*json)["email"].asString();
+                (*json).get("email", "").asString();
 
             std::string password =
-                (*json)["password"].asString();
+                (*json).get("password", "").asString();
 
             if (username.empty() ||
                 email.empty() ||
                 password.empty())
             {
                 callback(jsonError(
-                    "Username, email and password are required."));
+                    "Username, email and password are required"
+                ));
+
                 return;
             }
 
-            // ------------------------------------------------
-            // Check whether username already exists
-            // ------------------------------------------------
+            std::string role =
+                (*json).get("role", "BUYER").asString();
 
-            const char* checkParams[] =
+            if (role != "BUYER" && role != "SELLER")
             {
-                username.c_str()
-            };
+                role = "BUYER";
+            }
 
-            PGresult* checkResult =
-                PQexecParams(
-                    conn,
-                    "SELECT id FROM public.users "
-                    "WHERE name = $1",
-                    1,
-                    nullptr,
-                    checkParams,
-                    nullptr,
-                    nullptr,
-                    0);
+            // Check email
+            const char* checkParams[1];
+
+            checkParams[0] = email.c_str();
+
+            PGresult* checkResult = PQexecParams(
+                conn,
+                "SELECT id FROM public.users "
+                "WHERE email = $1 LIMIT 1",
+                1,
+                nullptr,
+                checkParams,
+                nullptr,
+                nullptr,
+                0
+            );
 
             if (PQresultStatus(checkResult) != PGRES_TUPLES_OK)
             {
+                std::string error = PQerrorMessage(conn);
+
                 PQclear(checkResult);
 
                 callback(jsonError(
-                    "Failed to check username.",
-                    k500InternalServerError));
+                    "Database error: " + error,
+                    k500InternalServerError
+                ));
+
                 return;
             }
 
@@ -225,94 +228,98 @@ int main()
                 PQclear(checkResult);
 
                 callback(jsonError(
-                    "Username already exists.",
-                    k409Conflict));
+                    "Email already registered",
+                    k409Conflict
+                ));
+
                 return;
             }
 
             PQclear(checkResult);
 
-            // ------------------------------------------------
-            // Hash password using Argon2id
-            // ------------------------------------------------
+            // Password hash
+            char hash[256];
 
-            char encoded[256];
-
-            int hashResult =
-                argon2id_hash_encoded(
-                    2,
-                    65536,
-                    1,
-                    password.c_str(),
-                    password.size(),
-                    nullptr,
-                    0,
-                    32,
-                    encoded,
-                    sizeof(encoded));
+            int hashResult = argon2id_hash_encoded(
+                3,
+                65536,
+                1,
+                password.c_str(),
+                password.length(),
+                nullptr,
+                0,
+                32,
+                hash,
+                sizeof(hash)
+            );
 
             if (hashResult != ARGON2_OK)
             {
                 callback(jsonError(
-                    "Password hashing failed.",
-                    k500InternalServerError));
+                    "Password hashing failed",
+                    k500InternalServerError
+                ));
+
                 return;
             }
 
-            const char* insertParams[] =
+            const char* params[4];
+
+            params[0] = username.c_str();
+            params[1] = email.c_str();
+            params[2] = hash;
+            params[3] = role.c_str();
+
+            PGresult* result = PQexecParams(
+                conn,
+                "INSERT INTO public.users "
+                "(name, email, password_hash, role) "
+                "VALUES ($1, $2, $3, $4) "
+                "RETURNING id",
+                4,
+                nullptr,
+                params,
+                nullptr,
+                nullptr,
+                0
+            );
+
+            if (PQresultStatus(result) != PGRES_TUPLES_OK)
             {
-                username.c_str(),
-                email.c_str(),
-                encoded
-            };
+                std::string error = PQerrorMessage(conn);
 
-            PGresult* insertResult =
-                PQexecParams(
-                    conn,
-                    "INSERT INTO public.users "
-                    "(name, email, password_hash, role) "
-                    "VALUES ($1, $2, $3, 'BUYER') "
-                    "RETURNING id",
-                    3,
-                    nullptr,
-                    insertParams,
-                    nullptr,
-                    nullptr,
-                    0);
-
-            if (PQresultStatus(insertResult) != PGRES_TUPLES_OK)
-            {
-                std::string error =
-                    PQresultErrorMessage(insertResult);
-
-                PQclear(insertResult);
+                PQclear(result);
 
                 callback(jsonError(
                     "Registration failed: " + error,
-                    k500InternalServerError));
+                    k500InternalServerError
+                ));
+
                 return;
             }
 
             int userId =
-                std::stoi(PQgetvalue(insertResult, 0, 0));
+                std::stoi(PQgetvalue(result, 0, 0));
 
-            PQclear(insertResult);
+            PQclear(result);
 
-            Json::Value responseJson;
-            responseJson["success"] = true;
-            responseJson["message"] =
-                "Registration successful.";
-            responseJson["user_id"] = userId;
-            responseJson["username"] = username;
+            Json::Value response;
+
+            response["success"] = true;
+            response["message"] =
+                "Registration successful";
+            response["user_id"] = userId;
 
             callback(
-                HttpResponse::newHttpJsonResponse(responseJson));
+                HttpResponse::newHttpJsonResponse(response)
+            );
         },
-        {Post});
+        {Post}
+    );
 
-    // ========================================================
-    // POST /api/login
-    // ========================================================
+    // =================================================
+    // LOGIN
+    // =================================================
 
     app().registerHandler(
         "/api/login",
@@ -323,48 +330,60 @@ int main()
 
             if (!json)
             {
-                callback(jsonError("Invalid JSON."));
+                callback(jsonError("Invalid JSON"));
                 return;
             }
 
             std::string username =
-                (*json)["username"].asString();
+                (*json).get("username", "").asString();
+
+            if (username.empty())
+            {
+                username =
+                    (*json).get("email", "").asString();
+            }
 
             std::string password =
-                (*json)["password"].asString();
+                (*json).get("password", "").asString();
 
             if (username.empty() || password.empty())
             {
                 callback(jsonError(
-                    "Username and password are required."));
+                    "Username/email and password are required"
+                ));
+
                 return;
             }
 
-            const char* params[] =
-            {
-                username.c_str()
-            };
+            const char* params[1];
 
-            PGresult* result =
-                PQexecParams(
-                    conn,
-                    "SELECT id, password_hash "
-                    "FROM public.users "
-                    "WHERE name = $1",
-                    1,
-                    nullptr,
-                    params,
-                    nullptr,
-                    nullptr,
-                    0);
+            params[0] = username.c_str();
+
+            PGresult* result = PQexecParams(
+                conn,
+                "SELECT id, name, email, password_hash, role "
+                "FROM public.users "
+                "WHERE name = $1 OR email = $1 "
+                "LIMIT 1",
+                1,
+                nullptr,
+                params,
+                nullptr,
+                nullptr,
+                0
+            );
 
             if (PQresultStatus(result) != PGRES_TUPLES_OK)
             {
+                std::string error = PQerrorMessage(conn);
+
                 PQclear(result);
 
                 callback(jsonError(
-                    "Login failed.",
-                    k500InternalServerError));
+                    "Login database error: " + error,
+                    k500InternalServerError
+                ));
+
                 return;
             }
 
@@ -373,47 +392,69 @@ int main()
                 PQclear(result);
 
                 callback(jsonError(
-                    "Invalid username or password.",
-                    k401Unauthorized));
+                    "Invalid username/email or password",
+                    k401Unauthorized
+                ));
+
                 return;
             }
 
             int userId =
                 std::stoi(PQgetvalue(result, 0, 0));
 
-            std::string storedHash =
+            std::string name =
                 PQgetvalue(result, 0, 1);
 
-            PQclear(result);
+            std::string email =
+                PQgetvalue(result, 0, 2);
 
-            int verifyResult =
-                argon2id_verify(
-                    storedHash.c_str(),
-                    password.c_str(),
-                    password.size());
+            std::string passwordHash =
+                PQgetvalue(result, 0, 3);
+
+            std::string role =
+                PQgetvalue(result, 0, 4);
+
+            int verifyResult = argon2id_verify(
+                passwordHash.c_str(),
+                password.c_str(),
+                password.length()
+            );
 
             if (verifyResult != ARGON2_OK)
             {
+                PQclear(result);
+
                 callback(jsonError(
-                    "Invalid username or password.",
-                    k401Unauthorized));
+                    "Invalid username/email or password",
+                    k401Unauthorized
+                ));
+
                 return;
             }
 
-            Json::Value responseJson;
-            responseJson["success"] = true;
-            responseJson["message"] = "Login successful.";
-            responseJson["user_id"] = userId;
-            responseJson["username"] = username;
+            currentUserId = userId;
+
+            PQclear(result);
+
+            Json::Value response;
+
+            response["success"] = true;
+            response["message"] = "Login successful";
+            response["user_id"] = userId;
+            response["name"] = name;
+            response["email"] = email;
+            response["role"] = role;
 
             callback(
-                HttpResponse::newHttpJsonResponse(responseJson));
+                HttpResponse::newHttpJsonResponse(response)
+            );
         },
-        {Post});
+        {Post}
+    );
 
-    // ========================================================
-    // GET /api/cart
-    // ========================================================
+    // =================================================
+    // GET CART
+    // =================================================
 
     app().registerHandler(
         "/api/cart",
@@ -422,148 +463,160 @@ int main()
         {
             int userId = getUserId(req);
 
-            if (userId <= 0)
+            if (!isValidUserId(userId))
             {
                 callback(jsonError(
-                    "User authentication required.",
-                    k401Unauthorized));
+                    "Invalid user ID",
+                    k401Unauthorized
+                ));
+
                 return;
             }
 
             std::string userIdString =
                 std::to_string(userId);
 
-            const char* params[] =
-            {
-                userIdString.c_str()
-            };
+            const char* params[1];
 
-            PGresult* result =
-                PQexecParams(
-                    conn,
-                    "SELECT c.product_id, "
-                    "p.name, "
-                    "p.price, "
-                    "c.quantity "
-                    "FROM public.cart c "
-                    "JOIN public.products p "
-                    "ON p.id = c.product_id "
-                    "WHERE c.user_id = $1 "
-                    "ORDER BY c.product_id",
-                    1,
-                    nullptr,
-                    params,
-                    nullptr,
-                    nullptr,
-                    0);
+            params[0] = userIdString.c_str();
+
+            PGresult* result = PQexecParams(
+                conn,
+                "SELECT c.id, c.product_id, "
+                "p.name, p.price, c.quantity, "
+                "(p.price * c.quantity) AS subtotal "
+                "FROM public.cart c "
+                "JOIN public.product p "
+                "ON c.product_id = p.id "
+                "WHERE c.user_id = $1 "
+                "ORDER BY c.id",
+                1,
+                nullptr,
+                params,
+                nullptr,
+                nullptr,
+                0
+            );
 
             if (PQresultStatus(result) != PGRES_TUPLES_OK)
             {
+                std::string error = PQerrorMessage(conn);
+
                 PQclear(result);
 
                 callback(jsonError(
-                    "Failed to load cart.",
-                    k500InternalServerError));
+                    "Failed to load cart: " + error,
+                    k500InternalServerError
+                ));
+
                 return;
             }
 
-            Json::Value items(Json::arrayValue);
-            double total = 0.0;
+            Json::Value response;
 
-            for (int i = 0; i < PQntuples(result); ++i)
+            response["success"] = true;
+            response["cart"] =
+                Json::Value(Json::arrayValue);
+            response["total"] = 0.0;
+
+            int rows = PQntuples(result);
+
+            for (int i = 0; i < rows; i++)
             {
-                int productId =
-                    std::stoi(PQgetvalue(result, i, 0));
-
-                std::string name =
-                    PQgetvalue(result, i, 1);
-
-                double price =
-                    std::stod(PQgetvalue(result, i, 2));
-
-                int quantity =
-                    std::stoi(PQgetvalue(result, i, 3));
-
-                double itemTotal =
-                    price * quantity;
-
-                total += itemTotal;
-
                 Json::Value item;
 
-                item["product_id"] = productId;
-                item["name"] = name;
-                item["price"] = price;
-                item["quantity"] = quantity;
-                item["subtotal"] = itemTotal;
+                item["id"] =
+                    std::stoi(PQgetvalue(result, i, 0));
 
-                items.append(item);
+                item["product_id"] =
+                    std::stoi(PQgetvalue(result, i, 1));
+
+                item["name"] =
+                    PQgetvalue(result, i, 2);
+
+                item["price"] =
+                    std::stod(PQgetvalue(result, i, 3));
+
+                item["quantity"] =
+                    std::stoi(PQgetvalue(result, i, 4));
+
+                double subtotal =
+                    std::stod(PQgetvalue(result, i, 5));
+
+                item["subtotal"] = subtotal;
+
+                response["total"] =
+                    response["total"].asDouble()
+                    + subtotal;
+
+                response["cart"].append(item);
             }
 
             PQclear(result);
 
-            Json::Value responseJson;
-            responseJson["success"] = true;
-            responseJson["items"] = items;
-            responseJson["total"] = total;
-
             callback(
-                HttpResponse::newHttpJsonResponse(responseJson));
+                HttpResponse::newHttpJsonResponse(response)
+            );
         },
-        {Get});
+        {Get}
+    );
 
-    // ========================================================
-    // POST /api/cart
-    // ========================================================
+    // =================================================
+    // ADD TO CART
+    // =================================================
 
     app().registerHandler(
         "/api/cart",
         [](const HttpRequestPtr& req,
            std::function<void(const HttpResponsePtr&)>&& callback)
         {
-            auto json = req->getJsonObject();
-
-            if (!json)
-            {
-                callback(jsonError("Invalid JSON."));
-                return;
-            }
-
             int userId = getUserId(req);
 
-            if (userId <= 0 &&
-                json->isMember("user_id"))
+            auto json = req->getJsonObject();
+
+            if (json && (*json).isMember("user_id"))
             {
                 userId =
                     (*json)["user_id"].asInt();
             }
 
-            if (userId <= 0)
+            if (!isValidUserId(userId))
             {
                 callback(jsonError(
-                    "User authentication required.",
-                    k401Unauthorized));
+                    "Invalid user ID",
+                    k401Unauthorized
+                ));
+
                 return;
             }
 
-            if (!json->isMember("product_id") ||
-                !json->isMember("quantity"))
+            if (!json)
             {
-                callback(jsonError(
-                    "product_id and quantity are required."));
+                callback(jsonError("Invalid JSON"));
                 return;
             }
 
             int productId =
-                (*json)["product_id"].asInt();
+                (*json).get("product_id", 0).asInt();
 
             int quantity =
-                (*json)["quantity"].asInt();
+                (*json).get("quantity", 1).asInt();
 
-            if (productId <= 0 || quantity <= 0)
+            if (productId <= 0)
             {
                 callback(jsonError(
-                    "Invalid product or quantity."));
+                    "Invalid product ID"
+                ));
+
+                return;
+            }
+
+            if (quantity <= 0)
+            {
+                callback(jsonError(
+                    "Quantity must be greater than 0"
+                ));
+
                 return;
             }
 
@@ -576,57 +629,65 @@ int main()
             std::string quantityString =
                 std::to_string(quantity);
 
-            const char* params[] =
-            {
-                userIdString.c_str(),
-                productIdString.c_str(),
-                quantityString.c_str()
-            };
+            const char* params[3];
 
-            PGresult* result =
-                PQexecParams(
-                    conn,
-                    "INSERT INTO public.cart "
-                    "(user_id, product_id, quantity) "
-                    "VALUES ($1, $2, $3) "
-                    "ON CONFLICT (user_id, product_id) "
-                    "DO UPDATE SET quantity = "
-                    "public.cart.quantity + EXCLUDED.quantity",
-                    3,
-                    nullptr,
-                    params,
-                    nullptr,
-                    nullptr,
-                    0);
+            params[0] = userIdString.c_str();
+            params[1] = productIdString.c_str();
+            params[2] = quantityString.c_str();
 
-            if (PQresultStatus(result) != PGRES_COMMAND_OK)
+            PGresult* result = PQexecParams(
+                conn,
+                "INSERT INTO public.cart "
+                "(user_id, product_id, quantity) "
+                "VALUES ($1, $2, $3) "
+                "ON CONFLICT (user_id, product_id) "
+                "DO UPDATE SET quantity = "
+                "public.cart.quantity + EXCLUDED.quantity "
+                "RETURNING id",
+                3,
+                nullptr,
+                params,
+                nullptr,
+                nullptr,
+                0
+            );
+
+            if (PQresultStatus(result) != PGRES_TUPLES_OK)
             {
-                std::string error =
-                    PQresultErrorMessage(result);
+                std::string error = PQerrorMessage(conn);
 
                 PQclear(result);
 
                 callback(jsonError(
-                    "Failed to add product to cart: " + error,
-                    k500InternalServerError));
+                    "Failed to add to cart: " + error,
+                    k500InternalServerError
+                ));
+
                 return;
             }
 
+            int cartId =
+                std::stoi(PQgetvalue(result, 0, 0));
+
             PQclear(result);
 
-            Json::Value responseJson;
-            responseJson["success"] = true;
-            responseJson["message"] =
-                "Product added to cart.";
+            Json::Value response;
+
+            response["success"] = true;
+            response["message"] =
+                "Product added to cart";
+            response["cart_id"] = cartId;
 
             callback(
-                HttpResponse::newHttpJsonResponse(responseJson));
+                HttpResponse::newHttpJsonResponse(response)
+            );
         },
-        {Post});
+        {Post}
+    );
 
-    // ========================================================
-    // POST /api/checkout
-    // ========================================================
+    // =================================================
+    // CHECKOUT
+    // =================================================
 
     app().registerHandler(
         "/api/checkout",
@@ -635,142 +696,162 @@ int main()
         {
             int userId = getUserId(req);
 
-            if (userId <= 0)
-            {
-                auto json = req->getJsonObject();
+            auto json = req->getJsonObject();
 
-                if (json && json->isMember("user_id"))
-                {
-                    userId =
-                        (*json)["user_id"].asInt();
-                }
+            if (json && (*json).isMember("user_id"))
+            {
+                userId =
+                    (*json)["user_id"].asInt();
             }
 
-            if (userId <= 0)
+            if (!isValidUserId(userId))
             {
                 callback(jsonError(
-                    "User authentication required.",
-                    k401Unauthorized));
+                    "Invalid user ID",
+                    k401Unauthorized
+                ));
+
                 return;
             }
 
             std::string userIdString =
                 std::to_string(userId);
 
-            const char* params[] =
-            {
-                userIdString.c_str()
-            };
+            const char* params[1];
 
-            // ------------------------------------------------
-            // Load cart
-            // ------------------------------------------------
+            params[0] = userIdString.c_str();
 
-            PGresult* cartResult =
-                PQexecParams(
-                    conn,
-                    "SELECT c.product_id, "
-                    "c.quantity, "
-                    "p.price, "
-                    "p.quantity "
-                    "FROM public.cart c "
-                    "JOIN public.products p "
-                    "ON p.id = c.product_id "
-                    "WHERE c.user_id = $1",
-                    1,
-                    nullptr,
-                    params,
-                    nullptr,
-                    nullptr,
-                    0);
+            PGresult* cartResult = PQexecParams(
+                conn,
+                "SELECT c.product_id, "
+                "c.quantity, "
+                "p.price, "
+                "p.quantity "
+                "FROM public.cart c "
+                "JOIN public.product p "
+                "ON c.product_id = p.id "
+                "WHERE c.user_id = $1",
+                1,
+                nullptr,
+                params,
+                nullptr,
+                nullptr,
+                0
+            );
 
             if (PQresultStatus(cartResult) != PGRES_TUPLES_OK)
             {
+                std::string error = PQerrorMessage(conn);
+
                 PQclear(cartResult);
 
                 callback(jsonError(
-                    "Failed to load cart.",
-                    k500InternalServerError));
+                    "Failed to read cart: " + error,
+                    k500InternalServerError
+                ));
+
                 return;
             }
 
-            int rowCount =
-                PQntuples(cartResult);
+            int rows = PQntuples(cartResult);
 
-            if (rowCount == 0)
+            if (rows == 0)
             {
                 PQclear(cartResult);
 
                 callback(jsonError(
-                    "Your cart is empty.",
-                    k400BadRequest));
+                    "Cart is empty"
+                ));
+
                 return;
             }
 
             double total = 0.0;
 
-            for (int i = 0; i < rowCount; ++i)
+            for (int i = 0; i < rows; i++)
             {
-                int requested =
+                int cartQuantity =
                     std::stoi(PQgetvalue(cartResult, i, 1));
-
-                int available =
-                    std::stoi(PQgetvalue(cartResult, i, 3));
-
-                if (requested > available)
-                {
-                    PQclear(cartResult);
-
-                    callback(jsonError(
-                        "One or more products do not have enough stock.",
-                        k400BadRequest));
-                    return;
-                }
 
                 double price =
                     std::stod(PQgetvalue(cartResult, i, 2));
 
-                total += price * requested;
+                int stock =
+                    std::stoi(PQgetvalue(cartResult, i, 3));
+
+                if (cartQuantity > stock)
+                {
+                    PQclear(cartResult);
+
+                    callback(jsonError(
+                        "Insufficient stock"
+                    ));
+
+                    return;
+                }
+
+                total += price * cartQuantity;
             }
 
-            // ------------------------------------------------
-            // Create order
-            // ------------------------------------------------
+            // Begin transaction
+            PGresult* beginResult =
+                PQexec(conn, "BEGIN");
 
+            if (PQresultStatus(beginResult) != PGRES_COMMAND_OK)
+            {
+                PQclear(beginResult);
+                PQclear(cartResult);
+
+                callback(jsonError(
+                    "Could not start transaction",
+                    k500InternalServerError
+                ));
+
+                return;
+            }
+
+            PQclear(beginResult);
+
+            // Convert total to string
             std::string totalString =
                 std::to_string(total);
 
-            const char* orderParams[] =
-            {
-                userIdString.c_str(),
-                totalString.c_str()
-            };
+            // IMPORTANT:
+            // Build the query as std::string,
+            // then use .c_str() in PQexecParams.
+            std::string orderQuery =
+                "INSERT INTO public.orders "
+                "(user_id, total_amount, status, order_date) "
+                "VALUES ($1, " +
+                totalString +
+                ", 'PLACED', CURRENT_TIMESTAMP) "
+                "RETURNING id";
 
-            PGresult* orderResult =
-                PQexecParams(
-                    conn,
-                    "INSERT INTO public.orders "
-                    "(user_id, total_amount, status) "
-                    "VALUES ($1, $2, 'CONFIRMED') "
-                    "RETURNING id",
-                    2,
-                    nullptr,
-                    orderParams,
-                    nullptr,
-                    nullptr,
-                    0);
+            PGresult* orderResult = PQexecParams(
+                conn,
+                orderQuery.c_str(),   // FIX
+                1,
+                nullptr,
+                params,
+                nullptr,
+                nullptr,
+                0
+            );
 
             if (PQresultStatus(orderResult) != PGRES_TUPLES_OK)
             {
-                std::string error =
-                    PQresultErrorMessage(orderResult);
+                std::string error = PQerrorMessage(conn);
+
+                PQexec(conn, "ROLLBACK");
 
                 PQclear(orderResult);
                 PQclear(cartResult);
 
                 callback(jsonError(
-                    "Failed to create order: " + error,
-                    k500InternalServerError));
+                    "Order creation failed: " + error,
+                    k500InternalServerError
+                ));
+
                 return;
             }
 
@@ -779,85 +860,110 @@ int main()
 
             PQclear(orderResult);
 
-            // ------------------------------------------------
-            // Create order items and update stock
-            // ------------------------------------------------
-
-            for (int i = 0; i < rowCount; ++i)
+            // Insert order items
+            for (int i = 0; i < rows; i++)
             {
-                std::string productId =
-                    PQgetvalue(cartResult, i, 0);
+                int productId =
+                    std::stoi(PQgetvalue(cartResult, i, 0));
 
-                std::string quantity =
-                    PQgetvalue(cartResult, i, 1);
+                int quantity =
+                    std::stoi(PQgetvalue(cartResult, i, 1));
 
-                std::string price =
-                    PQgetvalue(cartResult, i, 2);
+                double price =
+                    std::stod(PQgetvalue(cartResult, i, 2));
 
                 std::string orderIdString =
                     std::to_string(orderId);
 
-                const char* itemParams[] =
-                {
-                    orderIdString.c_str(),
-                    productId.c_str(),
-                    quantity.c_str(),
-                    price.c_str()
-                };
+                std::string productIdString =
+                    std::to_string(productId);
 
-                PGresult* itemResult =
-                    PQexecParams(
-                        conn,
-                        "INSERT INTO public.order_items "
-                        "(order_id, product_id, quantity, price) "
-                        "VALUES ($1, $2, $3, $4)",
-                        4,
-                        nullptr,
-                        itemParams,
-                        nullptr,
-                        nullptr,
-                        0);
+                std::string quantityString =
+                    std::to_string(quantity);
+
+                std::string priceString =
+                    std::to_string(price);
+
+                const char* itemParams[4];
+
+                itemParams[0] =
+                    orderIdString.c_str();
+
+                itemParams[1] =
+                    productIdString.c_str();
+
+                itemParams[2] =
+                    quantityString.c_str();
+
+                itemParams[3] =
+                    priceString.c_str();
+
+                PGresult* itemResult = PQexecParams(
+                    conn,
+                    "INSERT INTO public.order_items "
+                    "(order_id, product_id, quantity, price) "
+                    "VALUES ($1, $2, $3, $4)",
+                    4,
+                    nullptr,
+                    itemParams,
+                    nullptr,
+                    nullptr,
+                    0
+                );
 
                 if (PQresultStatus(itemResult) != PGRES_COMMAND_OK)
                 {
                     PQclear(itemResult);
+
+                    PQexec(conn, "ROLLBACK");
+
                     PQclear(cartResult);
 
                     callback(jsonError(
-                        "Failed to create order item.",
-                        k500InternalServerError));
+                        "Failed to create order item",
+                        k500InternalServerError
+                    ));
+
                     return;
                 }
 
                 PQclear(itemResult);
 
-                const char* stockParams[] =
-                {
-                    quantity.c_str(),
-                    productId.c_str()
-                };
+                // Update stock
+                const char* stockParams[2];
 
-                PGresult* stockResult =
-                    PQexecParams(
-                        conn,
-                        "UPDATE public.products "
-                        "SET quantity = quantity - $1 "
-                        "WHERE id = $2",
-                        2,
-                        nullptr,
-                        stockParams,
-                        nullptr,
-                        nullptr,
-                        0);
+                stockParams[0] =
+                    quantityString.c_str();
+
+                stockParams[1] =
+                    productIdString.c_str();
+
+                PGresult* stockResult = PQexecParams(
+                    conn,
+                    "UPDATE public.product "
+                    "SET quantity = quantity - $1 "
+                    "WHERE id = $2",
+                    2,
+                    nullptr,
+                    stockParams,
+                    nullptr,
+                    nullptr,
+                    0
+                );
 
                 if (PQresultStatus(stockResult) != PGRES_COMMAND_OK)
                 {
                     PQclear(stockResult);
+
+                    PQexec(conn, "ROLLBACK");
+
                     PQclear(cartResult);
 
                     callback(jsonError(
-                        "Failed to update product stock.",
-                        k500InternalServerError));
+                        "Failed to update stock",
+                        k500InternalServerError
+                    ));
+
                     return;
                 }
 
@@ -866,49 +972,71 @@ int main()
 
             PQclear(cartResult);
 
-            // ------------------------------------------------
             // Clear cart
-            // ------------------------------------------------
-
-            PGresult* clearResult =
-                PQexecParams(
-                    conn,
-                    "DELETE FROM public.cart "
-                    "WHERE user_id = $1",
-                    1,
-                    nullptr,
-                    params,
-                    nullptr,
-                    nullptr,
-                    0);
+            PGresult* clearResult = PQexecParams(
+                conn,
+                "DELETE FROM public.cart "
+                "WHERE user_id = $1",
+                1,
+                nullptr,
+                params,
+                nullptr,
+                nullptr,
+                0
+            );
 
             if (PQresultStatus(clearResult) != PGRES_COMMAND_OK)
             {
                 PQclear(clearResult);
 
+                PQexec(conn, "ROLLBACK");
+
                 callback(jsonError(
-                    "Order created but cart cleanup failed.",
-                    k500InternalServerError));
+                    "Failed to clear cart",
+                    k500InternalServerError
+                ));
+
                 return;
             }
 
             PQclear(clearResult);
 
-            Json::Value responseJson;
-            responseJson["success"] = true;
-            responseJson["message"] =
-                "Order placed successfully.";
-            responseJson["order_id"] = orderId;
-            responseJson["total"] = total;
+            // Commit
+            PGresult* commitResult =
+                PQexec(conn, "COMMIT");
+
+            if (PQresultStatus(commitResult) != PGRES_COMMAND_OK)
+            {
+                PQclear(commitResult);
+
+                callback(jsonError(
+                    "Checkout failed",
+                    k500InternalServerError
+                ));
+
+                return;
+            }
+
+            PQclear(commitResult);
+
+            Json::Value response;
+
+            response["success"] = true;
+            response["message"] =
+                "Order placed successfully";
+            response["order_id"] = orderId;
+            response["total"] = total;
 
             callback(
-                HttpResponse::newHttpJsonResponse(responseJson));
+                HttpResponse::newHttpJsonResponse(response)
+            );
         },
-        {Post});
+        {Post}
+    );
 
-    // ========================================================
-    // GET /api/orders
-    // ========================================================
+    // =================================================
+    // GET ORDERS
+    // =================================================
 
     app().registerHandler(
         "/api/orders",
@@ -917,81 +1045,118 @@ int main()
         {
             int userId = getUserId(req);
 
-            if (userId <= 0)
+            if (!isValidUserId(userId))
             {
                 callback(jsonError(
-                    "User authentication required.",
-                    k401Unauthorized));
+                    "Invalid user ID",
+                    k401Unauthorized
+                ));
+
                 return;
             }
 
             std::string userIdString =
                 std::to_string(userId);
 
-            const char* params[] =
-            {
-                userIdString.c_str()
-            };
+            const char* params[1];
 
-            PGresult* result =
-                PQexecParams(
-                    conn,
-                    "SELECT id, total_amount, status, created_at "
-                    "FROM public.orders "
-                    "WHERE user_id = $1 "
-                    "ORDER BY id DESC",
-                    1,
-                    nullptr,
-                    params,
-                    nullptr,
-                    nullptr,
-                    0);
+            params[0] = userIdString.c_str();
+
+            PGresult* result = PQexecParams(
+                conn,
+                "SELECT id, total_amount, status, order_date "
+                "FROM public.orders "
+                "WHERE user_id = $1 "
+                "ORDER BY id DESC",
+                1,
+                nullptr,
+                params,
+                nullptr,
+                nullptr,
+                0
+            );
 
             if (PQresultStatus(result) != PGRES_TUPLES_OK)
             {
+                std::string error = PQerrorMessage(conn);
+
                 PQclear(result);
 
                 callback(jsonError(
-                    "Failed to load orders.",
-                    k500InternalServerError));
+                    "Failed to load orders: " + error,
+                    k500InternalServerError
+                ));
+
                 return;
             }
 
-            Json::Value orders(Json::arrayValue);
+            Json::Value response;
 
-            for (int i = 0; i < PQntuples(result); ++i)
+            response["success"] = true;
+            response["orders"] =
+                Json::Value(Json::arrayValue);
+
+            int rows = PQntuples(result);
+
+            for (int i = 0; i < rows; i++)
             {
                 Json::Value order;
 
                 order["id"] =
                     std::stoi(PQgetvalue(result, i, 0));
 
-                order["total"] =
+                order["total_amount"] =
                     std::stod(PQgetvalue(result, i, 1));
 
                 order["status"] =
                     PQgetvalue(result, i, 2);
 
-                order["created_at"] =
+                order["order_date"] =
                     PQgetvalue(result, i, 3);
 
-                orders.append(order);
+                response["orders"].append(order);
             }
 
             PQclear(result);
 
-            Json::Value responseJson;
-            responseJson["success"] = true;
-            responseJson["orders"] = orders;
+            callback(
+                HttpResponse::newHttpJsonResponse(response)
+            );
+        },
+        {Get}
+    );
+
+    // =================================================
+    // HEALTH CHECK
+    // =================================================
+
+    app().registerHandler(
+        "/api/health",
+        [](const HttpRequestPtr& req,
+           std::function<void(const HttpResponsePtr&)>&& callback)
+        {
+            (void)req;
+
+            Json::Value response;
+
+            response["server"] = "UP";
+
+            response["database"] =
+                (conn != nullptr &&
+                 PQstatus(conn) == CONNECTION_OK)
+                ? "UP"
+                : "DOWN";
 
             callback(
-                HttpResponse::newHttpJsonResponse(responseJson));
+                HttpResponse::newHttpJsonResponse(response)
+            );
         },
-        {Get});
+        {Get}
+    );
 
-    // --------------------------------------------------------
-    // Render port
-    // --------------------------------------------------------
+    // =================================================
+    // START SERVER
+    // =================================================
 
     const char* portEnvironment =
         std::getenv("PORT");
@@ -1011,13 +1176,10 @@ int main()
     }
 
     std::cout
-        << "BerciiMart HTTP server starting on port "
+        << "BerciiMart server starting on port "
         << port
-        << "...\n";
-
-    // --------------------------------------------------------
-    // Start HTTP server
-    // --------------------------------------------------------
+        << "..."
+        << std::endl;
 
     app().addListener("0.0.0.0", port);
 

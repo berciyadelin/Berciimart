@@ -4,36 +4,33 @@ let products = [];
 let cart = [];
 let orders = [];
 
-let currentUser = JSON.parse(
-    localStorage.getItem("berciimart_user")
-) || null;
+let currentUser =
+    JSON.parse(localStorage.getItem("berciimart_user")) || null;
 
 
-// ===============================
+// ======================================================
 // PAGE LOAD
-// ===============================
+// ======================================================
 
 document.addEventListener("DOMContentLoaded", () => {
 
     const loginForm = document.getElementById("loginForm");
 
     if (loginForm) {
-        loginForm.addEventListener("submit", function (event) {
+        loginForm.addEventListener("submit", (event) => {
             event.preventDefault();
             login();
         });
     }
 
-
     const registerForm = document.getElementById("registerForm");
 
     if (registerForm) {
-        registerForm.addEventListener("submit", function (event) {
+        registerForm.addEventListener("submit", (event) => {
             event.preventDefault();
             register();
         });
     }
-
 
     if (currentUser) {
         showSection("productsSection");
@@ -46,57 +43,74 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 
-// ===============================
+// ======================================================
 // SHOW SECTION
-// ===============================
+// ======================================================
 
 function showSection(sectionId) {
 
-    const sections = document.querySelectorAll("section");
+    // Allow navigation buttons to use short names.
+    const sectionMap = {
+        products: "productsSection",
+        cart: "cartSection",
+        orders: "ordersSection",
+        login: "loginSection",
+        register: "registerSection"
+    };
+
+    const actualSectionId =
+        sectionMap[sectionId] || sectionId;
+
+    const sections =
+        document.querySelectorAll("main .section");
 
     sections.forEach(section => {
         section.style.display = "none";
     });
 
+    const section =
+        document.getElementById(actualSectionId);
 
-    const section = document.getElementById(sectionId);
-
-    if (section) {
-        section.style.display = "block";
+    if (!section) {
+        console.error(
+            "Section not found:",
+            actualSectionId
+        );
+        return;
     }
 
+    section.style.display = "block";
 
-    if (sectionId === "productsSection") {
+    if (actualSectionId === "productsSection") {
         loadProducts();
     }
 
-    if (sectionId === "cartSection") {
+    if (actualSectionId === "cartSection") {
         loadCart();
     }
 
-    if (sectionId === "ordersSection") {
+    if (actualSectionId === "ordersSection") {
         loadOrders();
     }
 }
 
 
-// ===============================
-// REGISTER / LOGIN NAVIGATION
-// ===============================
+// ======================================================
+// LOGIN / REGISTER NAVIGATION
+// ======================================================
 
 function showRegister() {
     showSection("registerSection");
 }
-
 
 function showLogin() {
     showSection("loginSection");
 }
 
 
-// ===============================
+// ======================================================
 // REGISTER
-// ===============================
+// ======================================================
 
 async function register() {
 
@@ -109,19 +123,14 @@ async function register() {
     const password =
         document.getElementById("registerPassword").value;
 
-
     const message =
         document.getElementById("registerMessage");
 
-
     if (!name || !email || !password) {
-
         message.textContent =
             "Please fill all fields.";
-
         return;
     }
-
 
     try {
 
@@ -129,35 +138,27 @@ async function register() {
             `${API_URL}/register`,
             {
                 method: "POST",
-
                 headers: {
                     "Content-Type": "application/json"
                 },
-
                 body: JSON.stringify({
-                    name: name,
-                    email: email,
-                    password: password
+                    name,
+                    email,
+                    password
                 })
             }
         );
 
-
         const data = await response.json();
 
-
         if (!response.ok || !data.success) {
-
             message.textContent =
                 data.error || "Registration failed.";
-
             return;
         }
 
-
         message.textContent =
             "Registration successful! Please login.";
-
 
         document.getElementById("registerForm").reset();
 
@@ -165,10 +166,12 @@ async function register() {
             showLogin();
         }, 1000);
 
-    }
-    catch (error) {
+    } catch (error) {
 
-        console.error(error);
+        console.error(
+            "Registration error:",
+            error
+        );
 
         message.textContent =
             "Cannot connect to server.";
@@ -176,9 +179,9 @@ async function register() {
 }
 
 
-// ===============================
+// ======================================================
 // LOGIN
-// ===============================
+// ======================================================
 
 async function login() {
 
@@ -188,19 +191,14 @@ async function login() {
     const password =
         document.getElementById("loginPassword").value;
 
-
     const message =
         document.getElementById("loginMessage");
 
-
     if (!email || !password) {
-
         message.textContent =
             "Please enter email and password.";
-
         return;
     }
-
 
     try {
 
@@ -208,30 +206,23 @@ async function login() {
             `${API_URL}/login`,
             {
                 method: "POST",
-
                 headers: {
                     "Content-Type": "application/json"
                 },
-
                 body: JSON.stringify({
-                    email: email,
-                    password: password
+                    email,
+                    password
                 })
             }
         );
 
-
         const data = await response.json();
 
-
         if (!response.ok || !data.success) {
-
             message.textContent =
                 data.error || "Login failed.";
-
             return;
         }
-
 
         currentUser = {
             id: data.user_id,
@@ -240,19 +231,15 @@ async function login() {
             role: data.role
         };
 
-
         localStorage.setItem(
             "berciimart_user",
             JSON.stringify(currentUser)
         );
 
+        document.getElementById("loginForm").reset();
 
         message.textContent =
             "Login successful!";
-
-
-        document.getElementById("loginForm").reset();
-
 
         showSection("productsSection");
 
@@ -260,10 +247,12 @@ async function login() {
         loadCart();
         loadOrders();
 
-    }
-    catch (error) {
+    } catch (error) {
 
-        console.error(error);
+        console.error(
+            "Login error:",
+            error
+        );
 
         message.textContent =
             "Cannot connect to server.";
@@ -271,9 +260,9 @@ async function login() {
 }
 
 
-// ===============================
+// ======================================================
 // LOGOUT
-// ===============================
+// ======================================================
 
 function logout() {
 
@@ -289,13 +278,33 @@ function logout() {
 }
 
 
-// ===============================
-// PRODUCT IMAGE
-// ===============================
+// ======================================================
+// PRODUCT IMAGES
+// ======================================================
 
-function getProductImage(productName) {
+function getProductImage(product) {
 
-    const name = productName.toLowerCase();
+    // First use image_url from database if available.
+    if (
+        product &&
+        product.image_url &&
+        product.image_url.trim() !== ""
+    ) {
+        return product.image_url;
+    }
+
+    const name =
+        String(product?.name || "").toLowerCase();
+
+
+    // LAPTOP
+    if (
+        name.includes("laptop") ||
+        name.includes("computer") ||
+        name.includes("macbook")
+    ) {
+        return "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=600&q=80";
+    }
 
 
     // PHONE
@@ -305,17 +314,23 @@ function getProductImage(productName) {
         name.includes("iphone") ||
         name.includes("samsung")
     ) {
-        return "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=500&q=80";
+        return "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=600&q=80";
     }
 
 
-    // LAPTOP
+    // KEYBOARD
     if (
-        name.includes("laptop") ||
-        name.includes("computer") ||
-        name.includes("macbook")
+        name.includes("keyboard")
     ) {
-        return "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=500&q=80";
+        return "https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=600&q=80";
+    }
+
+
+    // MOUSE
+    if (
+        name.includes("mouse")
+    ) {
+        return "https://images.unsplash.com/photo-1527814050087-3793815479db?auto=format&fit=crop&w=600&q=80";
     }
 
 
@@ -326,7 +341,17 @@ function getProductImage(productName) {
         name.includes("earphone") ||
         name.includes("airpod")
     ) {
-        return "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=500&q=80";
+        return "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=600&q=80";
+    }
+
+
+    // T-SHIRT
+    if (
+        name.includes("shirt") ||
+        name.includes("tshirt") ||
+        name.includes("t-shirt")
+    ) {
+        return "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=600&q=80";
     }
 
 
@@ -336,18 +361,7 @@ function getProductImage(productName) {
         name.includes("sneaker") ||
         name.includes("footwear")
     ) {
-        return "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=500&q=80";
-    }
-
-
-    // SHIRT / CLOTHES
-    if (
-        name.includes("shirt") ||
-        name.includes("tshirt") ||
-        name.includes("t-shirt") ||
-        name.includes("cloth")
-    ) {
-        return "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=500&q=80";
+        return "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=600&q=80";
     }
 
 
@@ -356,7 +370,7 @@ function getProductImage(productName) {
         name.includes("watch") ||
         name.includes("smartwatch")
     ) {
-        return "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=500&q=80";
+        return "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&q=80";
     }
 
 
@@ -365,7 +379,7 @@ function getProductImage(productName) {
         name.includes("bag") ||
         name.includes("backpack")
     ) {
-        return "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=500&q=80";
+        return "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=600&q=80";
     }
 
 
@@ -373,32 +387,66 @@ function getProductImage(productName) {
     if (
         name.includes("camera")
     ) {
-        return "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=500&q=80";
+        return "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=600&q=80";
     }
 
 
-    // DEFAULT IMAGE
-    return "https://via.placeholder.com/500x350?text=BerciiMart";
+    // PYTHON / PROGRAMMING BOOK
+    if (
+        name.includes("python book") ||
+        name.includes("programming book") ||
+        name.includes("c programming") ||
+        name.includes("coding book") ||
+        name.includes("book")
+    ) {
+        return "https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=600&q=80";
+    }
+
+
+    // RICE
+    if (
+        name.includes("rice")
+    ) {
+        return "https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=600&q=80";
+    }
+
+
+    // DEFAULT
+    return "https://via.placeholder.com/600x400?text=BerciiMart";
 }
 
 
-// ===============================
+// ======================================================
 // LOAD PRODUCTS
-// ===============================
+// ======================================================
 
 async function loadProducts() {
+
+    const container =
+        document.getElementById("productsContainer");
+
+    if (!container) {
+        console.error(
+            "productsContainer not found."
+        );
+        return;
+    }
+
+    container.innerHTML =
+        "<p>Loading products...</p>";
 
     try {
 
         const response =
             await fetch(`${API_URL}/products`);
 
-
         const data =
             await response.json();
 
-
         if (!response.ok || !data.success) {
+
+            container.innerHTML =
+                "<p>Unable to load products.</p>";
 
             console.error(
                 data.error || "Failed to load products"
@@ -407,39 +455,81 @@ async function loadProducts() {
             return;
         }
 
+        products =
+            Array.isArray(data.products)
+                ? data.products
+                : [];
 
-        products = data.products || [];
-
+        populateCategories();
 
         displayProducts();
 
-    }
-    catch (error) {
+    } catch (error) {
 
         console.error(
             "Product loading error:",
             error
         );
+
+        container.innerHTML =
+            "<p>Cannot connect to server.</p>";
     }
 }
 
 
-// ===============================
-// DISPLAY PRODUCTS
-// ===============================
+// ======================================================
+// POPULATE CATEGORIES
+// ======================================================
 
-function displayProducts() {
+function populateCategories() {
+
+    const filter =
+        document.getElementById("categoryFilter");
+
+    if (!filter) {
+        return;
+    }
+
+    const categories = [
+        ...new Set(
+            products
+                .map(product =>
+                    product.category || "General"
+                )
+                .filter(Boolean)
+        )
+    ];
+
+    filter.innerHTML =
+        `<option value="">All Categories</option>`;
+
+    categories.forEach(category => {
+
+        const option =
+            document.createElement("option");
+
+        option.value = category;
+        option.textContent = category;
+
+        filter.appendChild(option);
+    });
+}
+
+
+// ======================================================
+// DISPLAY PRODUCTS
+// ======================================================
+
+function displayProducts(list = products) {
 
     const container =
         document.getElementById("productsContainer");
-
 
     if (!container) {
         return;
     }
 
-
-    if (products.length === 0) {
+    if (!list.length) {
 
         container.innerHTML =
             "<p>No products available.</p>";
@@ -447,44 +537,63 @@ function displayProducts() {
         return;
     }
 
-
     container.innerHTML =
-        products.map(product => {
+        list.map(product => {
 
             const image =
-                getProductImage(product.name);
+                getProductImage(product);
 
+            const quantity =
+                Number(product.quantity || 0);
+
+            const price =
+                Number(product.price || 0);
 
             return `
                 <div class="product-card">
 
                     <img
                         src="${image}"
-                        alt="${product.name}"
+                        alt="${escapeHtml(product.name)}"
                         class="product-image"
-                        onerror="this.src='https://via.placeholder.com/500x350?text=BerciiMart'"
+                        onerror="this.src='https://via.placeholder.com/600x400?text=BerciiMart'"
                     >
 
                     <h3>
-                        ${product.name}
+                        ${escapeHtml(product.name)}
                     </h3>
 
                     <p>
-                        Price: ₹${Number(product.price).toFixed(2)}
+                        ${escapeHtml(
+                            product.description || ""
+                        )}
                     </p>
 
                     <p>
-                        Available: ${product.quantity}
+                        Category:
+                        ${escapeHtml(
+                            product.category || "General"
+                        )}
+                    </p>
+
+                    <p>
+                        Price:
+                        ₹${price.toFixed(2)}
+                    </p>
+
+                    <p>
+                        Available:
+                        ${quantity}
                     </p>
 
                     <button
                         onclick="addToCart(${product.id})"
-                        ${product.quantity <= 0 ? "disabled" : ""}
+                        ${quantity <= 0 ? "disabled" : ""}
                     >
                         ${
-                            product.quantity <= 0
-                            ? "Out of Stock"
-                            : "Add to Cart"
+                            quantity <= 0
+                                ? "Out of Stock"
+                                : "Add to Cart"
                         }
                     </button>
 
@@ -495,101 +604,85 @@ function displayProducts() {
 }
 
 
-// ===============================
-// SEARCH PRODUCTS
-// ===============================
+// ======================================================
+// SEARCH + CATEGORY FILTER
+// ======================================================
 
-function searchProducts() {
+function applyProductFilters() {
 
     const searchInput =
         document.getElementById("productSearch");
 
-
-    if (!searchInput) {
-        return;
-    }
-
+    const categoryFilter =
+        document.getElementById("categoryFilter");
 
     const search =
-        searchInput.value.toLowerCase().trim();
+        searchInput
+            ? searchInput.value.toLowerCase().trim()
+            : "";
 
-
-    const container =
-        document.getElementById("productsContainer");
-
+    const category =
+        categoryFilter
+            ? categoryFilter.value.toLowerCase()
+            : "";
 
     const filtered =
-        products.filter(product =>
-            product.name
-                .toLowerCase()
-                .includes(search)
-        );
+        products.filter(product => {
 
+            const name =
+                String(product.name || "")
+                    .toLowerCase();
 
-    if (filtered.length === 0) {
+            const description =
+                String(product.description || "")
+                    .toLowerCase();
 
-        container.innerHTML =
-            "<p>No products found.</p>";
+            const productCategory =
+                String(product.category || "General")
+                    .toLowerCase();
 
-        return;
-    }
+            const matchesSearch =
+                !search ||
+                name.includes(search) ||
+                description.includes(search);
 
+            const matchesCategory =
+                !category ||
+                productCategory === category;
 
-    container.innerHTML =
-        filtered.map(product => {
+            return (
+                matchesSearch &&
+                matchesCategory
+            );
+        });
 
-            const image =
-                getProductImage(product.name);
-
-
-            return `
-                <div class="product-card">
-
-                    <img
-                        src="${image}"
-                        alt="${product.name}"
-                        class="product-image"
-                        onerror="this.src='https://via.placeholder.com/500x350?text=BerciiMart'"
-                    >
-
-                    <h3>${product.name}</h3>
-
-                    <p>
-                        Price: ₹${Number(product.price).toFixed(2)}
-                    </p>
-
-                    <p>
-                        Available: ${product.quantity}
-                    </p>
-
-                    <button
-                        onclick="addToCart(${product.id})"
-                    >
-                        Add to Cart
-                    </button>
-
-                </div>
-            `;
-
-        }).join("");
+    displayProducts(filtered);
 }
 
 
-// ===============================
+function searchProducts() {
+    applyProductFilters();
+}
+
+
+function filterProducts() {
+    applyProductFilters();
+}
+
+
+// ======================================================
 // ADD TO CART
-// ===============================
+// ======================================================
 
 async function addToCart(productId) {
 
     if (!currentUser) {
 
         alert("Please login first.");
-
         showLogin();
 
         return;
     }
-
 
     try {
 
@@ -611,10 +704,8 @@ async function addToCart(productId) {
                 })
             });
 
-
         const data =
             await response.json();
-
 
         if (!response.ok || !data.success) {
 
@@ -626,16 +717,18 @@ async function addToCart(productId) {
             return;
         }
 
+        alert(
+            "Product added to cart!"
+        );
 
-        alert("Product added to cart!");
+        await loadCart();
 
+    } catch (error) {
 
-        loadCart();
-
-    }
-    catch (error) {
-
-        console.error(error);
+        console.error(
+            "Add to cart error:",
+            error
+        );
 
         alert(
             "Cannot connect to server."
@@ -644,16 +737,15 @@ async function addToCart(productId) {
 }
 
 
-// ===============================
+// ======================================================
 // LOAD CART
-// ===============================
+// ======================================================
 
 async function loadCart() {
 
     if (!currentUser) {
         return;
     }
-
 
     try {
 
@@ -666,10 +758,8 @@ async function loadCart() {
                 }
             });
 
-
         const data =
             await response.json();
-
 
         if (!response.ok || !data.success) {
 
@@ -680,14 +770,19 @@ async function loadCart() {
             return;
         }
 
+        // Backend returns "items".
+        cart =
+            Array.isArray(data.items)
+                ? data.items
+                : Array.isArray(data.cart)
+                    ? data.cart
+                    : [];
 
-        cart = data.cart || [];
+        displayCart(
+            Number(data.total || 0)
+        );
 
-
-        displayCart(data.total || 0);
-
-    }
-    catch (error) {
+    } catch (error) {
 
         console.error(
             "Cart error:",
@@ -697,79 +792,81 @@ async function loadCart() {
 }
 
 
-// ===============================
+// ======================================================
 // DISPLAY CART
-// ===============================
+// ======================================================
 
 function displayCart(total) {
 
     const container =
         document.getElementById("cartContainer");
 
-
     const totalElement =
         document.getElementById("cartTotal");
-
 
     if (!container) {
         return;
     }
 
-
-    if (cart.length === 0) {
+    if (!cart.length) {
 
         container.innerHTML =
             "<p>Your cart is empty.</p>";
 
         if (totalElement) {
-            totalElement.textContent = "₹0.00";
+            totalElement.textContent =
+                "0.00";
         }
 
         return;
     }
-
 
     container.innerHTML =
         cart.map(item => {
 
             const product =
                 products.find(
-                    p => p.id === item.product_id
+                    p =>
+                        Number(p.id) ===
+                        Number(item.product_id)
                 );
-
 
             const image =
                 product
-                ? getProductImage(product.name)
-                : getProductImage(item.name);
-
+                    ? getProductImage(product)
+                    : getProductImage({
+                        name: item.name
+                    });
 
             return `
                 <div class="cart-item">
 
                     <img
                         src="${image}"
-                        alt="${item.name}"
+                        alt="${escapeHtml(item.name || "")}"
                         class="cart-image"
+                        onerror="this.src='https://via.placeholder.com/300x200?text=BerciiMart'"
                     >
 
                     <div>
 
                         <h3>
-                            ${item.name}
+                            ${escapeHtml(item.name || "")}
                         </h3>
 
                         <p>
-                            Price: ₹${Number(item.price).toFixed(2)}
+                            Price:
+                            ₹${Number(item.price || 0).toFixed(2)}
                         </p>
 
                         <p>
-                            Quantity: ${item.quantity}
+                            Quantity:
+                            ${Number(item.quantity || 0)}
                         </p>
 
                         <p>
                             Subtotal:
-                            ₹${Number(item.subtotal).toFixed(2)}
+                            ₹${Number(item.subtotal || 0).toFixed(2)}
                         </p>
 
                     </div>
@@ -779,25 +876,95 @@ function displayCart(total) {
 
         }).join("");
 
-
     if (totalElement) {
 
         totalElement.textContent =
-            `₹${Number(total).toFixed(2)}`;
+            Number(total || 0).toFixed(2);
     }
 }
 
 
-// ===============================
+// ======================================================
+// CHECKOUT
+// ======================================================
+
+async function checkout() {
+
+    if (!currentUser) {
+
+        alert("Please login first.");
+        return;
+    }
+
+    if (!cart.length) {
+
+        alert("Your cart is empty.");
+        return;
+    }
+
+    try {
+
+        const response =
+            await fetch(`${API_URL}/checkout`, {
+
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-User-Id":
+                        String(currentUser.id)
+                },
+
+                body: JSON.stringify({
+                    user_id: currentUser.id
+                })
+            });
+
+        const data =
+            await response.json();
+
+        if (!response.ok || !data.success) {
+
+            alert(
+                data.error ||
+                "Checkout failed."
+            );
+
+            return;
+        }
+
+        alert(
+            "Order placed successfully!"
+        );
+
+        await loadCart();
+        await loadOrders();
+
+        showSection("ordersSection");
+
+    } catch (error) {
+
+        console.error(
+            "Checkout error:",
+            error
+        );
+
+        alert(
+            "Cannot connect to server."
+        );
+    }
+}
+
+
+// ======================================================
 // LOAD ORDERS
-// ===============================
+// ======================================================
 
 async function loadOrders() {
 
     if (!currentUser) {
         return;
     }
-
 
     try {
 
@@ -810,26 +977,26 @@ async function loadOrders() {
                 }
             });
 
-
-        if (!response.ok) {
-            return;
-        }
-
-
         const data =
             await response.json();
 
+        if (!response.ok || !data.success) {
 
-        if (data.success) {
+            console.error(
+                data.error || "Failed to load orders"
+            );
 
-            orders =
-                data.orders || [];
-
-            displayOrders();
+            return;
         }
 
-    }
-    catch (error) {
+        orders =
+            Array.isArray(data.orders)
+                ? data.orders
+                : [];
+
+        displayOrders();
+
+    } catch (error) {
 
         console.error(
             "Orders error:",
@@ -839,22 +1006,20 @@ async function loadOrders() {
 }
 
 
-// ===============================
+// ======================================================
 // DISPLAY ORDERS
-// ===============================
+// ======================================================
 
 function displayOrders() {
 
     const container =
         document.getElementById("ordersContainer");
 
-
     if (!container) {
         return;
     }
 
-
-    if (orders.length === 0) {
+    if (!orders.length) {
 
         container.innerHTML =
             "<p>No orders found.</p>";
@@ -862,9 +1027,15 @@ function displayOrders() {
         return;
     }
 
-
     container.innerHTML =
         orders.map(order => {
+
+            const total =
+                Number(
+                    order.total_amount ??
+                    order.total ??
+                    0
+                );
 
             return `
                 <div class="order-card">
@@ -875,12 +1046,21 @@ function displayOrders() {
 
                     <p>
                         Total:
-                        ₹${Number(order.total || 0).toFixed(2)}
+                        ₹${total.toFixed(2)}
                     </p>
 
                     <p>
                         Status:
-                        ${order.status || "Placed"}
+                        ${escapeHtml(
+                            order.status || "Placed"
+                        )}
+                    </p>
+
+                    <p>
+                        Date:
+                        ${escapeHtml(
+                            order.order_date || ""
+                        )}
                     </p>
 
                 </div>
@@ -890,190 +1070,52 @@ function displayOrders() {
 }
 
 
-// ===============================
-// CHECKOUT
-// ===============================
+// ======================================================
+// HTML ESCAPING
+// ======================================================
 
-async function checkout() {
+function escapeHtml(value) {
 
-    if (!currentUser) {
-
-        alert("Please login first.");
-
-        return;
-    }
-
-
-    if (cart.length === 0) {
-
-        alert("Your cart is empty.");
-
-        return;
-    }
-
-
-    try {
-
-        const response =
-            await fetch(`${API_URL}/checkout`, {
-
-                method: "POST",
-
-                headers: {
-                    "Content-Type": "application/json"
-                },
-
-                body: JSON.stringify({
-                    user_id: currentUser.id
-                })
-            });
-
-
-        const data =
-            await response.json();
-
-
-        if (!response.ok || !data.success) {
-
-            alert(
-                data.error ||
-                "Checkout failed."
-            );
-
-            return;
-        }
-
-
-        alert("Order placed successfully!");
-
-
-        loadCart();
-        loadOrders();
-
-        showSection("ordersSection");
-
-    }
-    catch (error) {
-
-        console.error(error);
-
-        alert(
-            "Cannot connect to server."
-        );
-    }
+    return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }
 
 
-// ===============================
-// CATEGORY FILTER
-// ===============================
-
-function filterProducts() {
-
-    const filter =
-        document.getElementById("categoryFilter");
-
-
-    if (!filter) {
-        return;
-    }
-
-
-    const value =
-        filter.value.toLowerCase();
-
-
-    if (!value) {
-
-        displayProducts();
-
-        return;
-    }
-
-
-    const filtered =
-        products.filter(product =>
-            product.name
-                .toLowerCase()
-                .includes(value)
-        );
-
-
-    const container =
-        document.getElementById("productsContainer");
-
-
-    if (filtered.length === 0) {
-
-        container.innerHTML =
-            "<p>No products found.</p>";
-
-        return;
-    }
-
-
-    container.innerHTML =
-        filtered.map(product => {
-
-            const image =
-                getProductImage(product.name);
-
-
-            return `
-                <div class="product-card">
-
-                    <img
-                        src="${image}"
-                        alt="${product.name}"
-                        class="product-image"
-                    >
-
-                    <h3>${product.name}</h3>
-
-                    <p>
-                        Price:
-                        ₹${Number(product.price).toFixed(2)}
-                    </p>
-
-                    <p>
-                        Available:
-                        ${product.quantity}
-                    </p>
-
-                    <button
-                        onclick="addToCart(${product.id})"
-                    >
-                        Add to Cart
-                    </button>
-
-                </div>
-            `;
-
-        }).join("");
-}
-
-
-// ===============================
+// ======================================================
 // SEARCH EVENT
-// ===============================
+// ======================================================
 
-document.addEventListener("input", function(event) {
+document.addEventListener(
+    "input",
+    event => {
 
-    if (event.target.id === "productSearch") {
-        searchProducts();
+        if (
+            event.target &&
+            event.target.id === "productSearch"
+        ) {
+            searchProducts();
+        }
     }
+);
 
-});
 
-
-// ===============================
+// ======================================================
 // CATEGORY EVENT
-// ===============================
+// ======================================================
 
-document.addEventListener("change", function(event) {
+document.addEventListener(
+    "change",
+    event => {
 
-    if (event.target.id === "categoryFilter") {
-        filterProducts();
+        if (
+            event.target &&
+            event.target.id === "categoryFilter"
+        ) {
+            filterProducts();
+        }
     }
-
-});
+);
