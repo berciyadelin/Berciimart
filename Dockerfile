@@ -11,7 +11,9 @@ RUN apt-get update && apt-get install -y \
     libdrogon-dev \
     libjsoncpp-dev \
     uuid-dev \
+    zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 COPY . .
@@ -23,16 +25,14 @@ RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
 FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
+
 RUN apt-get update && apt-get install -y \
-    build-essential \
-    cmake \
-    pkg-config \
-    libpq-dev \
-    libargon2-dev \
-    libdrogon-dev \
-    libjsoncpp-dev \
-    uuid-dev \
-    zlib1g-dev \
+    libpq5 \
+    libargon2-1 \
+    libdrogon1t64 \
+    libjsoncpp25 \
+    uuid-runtime \
+    zlib1g \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
