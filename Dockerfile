@@ -12,6 +12,11 @@ RUN apt-get update && apt-get install -y \
     libjsoncpp-dev \
     uuid-dev \
     zlib1g-dev \
+    libssl-dev \
+    libcurl4-openssl-dev \
+    libyaml-cpp-dev \
+    libsqlite3-dev \
+    libhiredis-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -31,8 +36,12 @@ RUN apt-get update && apt-get install -y \
     libargon2-1 \
     libdrogon1t64 \
     libjsoncpp25 \
-    uuid-runtime \
     zlib1g \
+    libssl3 \
+    libcurl4 \
+    libyaml-cpp0.8 \
+    libsqlite3-0 \
+    libhiredis0.14 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
