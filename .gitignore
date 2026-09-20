@@ -20,7 +20,6 @@ database/users.txt
 src/*_backup.cpp
 #Build directory build/
 # Local database backup
-*.sql
 !database/schema.sql
 !database/seed.sql
 !database/migrations/*.sql
