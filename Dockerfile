@@ -10,8 +10,8 @@ RUN apt-get update && apt-get install -y \
     libargon2-dev \
     libdrogon-dev \
     libjsoncpp-dev \
+    uuid-dev \
     && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
 
 COPY . .
