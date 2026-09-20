@@ -46,7 +46,17 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: Install dependencies on Ubuntu
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libargon2-dev libpq-dev
 
+    - name: Install dependencies on Windows
+      if: runner.os == 'Windows'
+      shell: powershell
+      run: |
+        C:\vcpkg\vcpkg.exe install libpq argon2 --triplet x64-windows
     - name: Set reusable strings
       # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
       id: strings
