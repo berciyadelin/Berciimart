@@ -1,227 +1,147 @@
 const API_URL = "/api";
 
+let currentUser = null;
 let products = [];
 let cart = [];
 let orders = [];
 
-let currentUser =
-    JSON.parse(localStorage.getItem("berciimart_user")) || null;
-
-
-// ======================================================
-// PAGE LOAD
-// ======================================================
-
 document.addEventListener("DOMContentLoaded", () => {
-
     const loginForm = document.getElementById("loginForm");
-
-    if (loginForm) {
-        loginForm.addEventListener("submit", (event) => {
-            event.preventDefault();
-            login();
-        });
-    }
-
     const registerForm = document.getElementById("registerForm");
 
-    if (registerForm) {
-        registerForm.addEventListener("submit", (event) => {
-            event.preventDefault();
-            register();
-        });
+    if (loginForm) {
+        loginForm.addEventListener("submit", handleLogin);
     }
 
-    if (currentUser) {
-        showSection("productsSection");
-        loadProducts();
-        loadCart();
-        loadOrders();
-    } else {
-        showSection("loginSection");
+    if (registerForm) {
+        registerForm.addEventListener("submit", handleRegister);
     }
+
+    const searchInput = document.getElementById("productSearch");
+    const categoryFilter = document.getElementById("categoryFilter");
+
+    if (searchInput) {
+        searchInput.addEventListener("input", displayProducts);
+    }
+
+    if (categoryFilter) {
+        categoryFilter.addEventListener("change", displayProducts);
+    }
+
+    showSection("login");
 });
 
+function showSection(sectionName) {
+    const sections = document.querySelectorAll(".section");
 
-// ======================================================
-// SHOW SECTION
-// ======================================================
-
-function showSection(sectionId) {
-
-    const sectionMap = {
-        products: "productsSection",
-        cart: "cartSection",
-        orders: "ordersSection",
-        login: "loginSection",
-        register: "registerSection"
-    };
-
-    const actualSectionId =
-        sectionMap[sectionId] || sectionId;
-
-    const sections =
-        document.querySelectorAll("main .section");
-
-    sections.forEach((section) => {
-        section.style.display = "none";
+    sections.forEach(section => {
+        section.classList.remove("active");
     });
 
-    const section =
-        document.getElementById(actualSectionId);
+    const sectionMap = {
+        login: "loginSection",
+        register: "registerSection",
+        products: "productsSection",
+        cart: "cartSection",
+        orders: "ordersSection"
+    };
 
-    if (!section) {
-        console.error(
-            "Section not found:",
-            actualSectionId
-        );
-        return;
+    const sectionId = sectionMap[sectionName];
+
+    if (sectionId) {
+        const section = document.getElementById(sectionId);
+
+        if (section) {
+            section.classList.add("active");
+        }
     }
 
-    section.style.display = "block";
-
-    if (actualSectionId === "productsSection") {
+    if (sectionName === "products") {
         loadProducts();
     }
 
-    if (actualSectionId === "cartSection") {
+    if (sectionName === "cart") {
         loadCart();
     }
 
-    if (actualSectionId === "ordersSection") {
+    if (sectionName === "orders") {
         loadOrders();
     }
 }
 
+async function handleRegister(event) {
+    event.preventDefault();
 
-// ======================================================
-// LOGIN / REGISTER NAVIGATION
-// ======================================================
-
-function showRegister() {
-    showSection("registerSection");
-}
-
-function showLogin() {
-    showSection("loginSection");
-}
-
-
-// ======================================================
-// REGISTER
-// ======================================================
-
-async function register() {
-
-    const name =
-        document.getElementById("registerName").value.trim();
-
-    const email =
-        document.getElementById("registerEmail").value.trim();
-
-    const password =
-        document.getElementById("registerPassword").value;
-
-    const message =
-        document.getElementById("registerMessage");
+    const name = document.getElementById("registerName")?.value.trim();
+    const email = document.getElementById("registerEmail")?.value.trim();
+    const password = document.getElementById("registerPassword")?.value;
+    const role = document.getElementById("registerRole")?.value || "BUYER";
 
     if (!name || !email || !password) {
-        message.textContent =
-            "Please fill all fields.";
+        alert("Please fill in all registration fields.");
         return;
     }
 
     try {
-
-        const response = await fetch(
-            `${API_URL}/register`,
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    name,
-                    email,
-                    password
-                })
-            }
-        );
+        const response = await fetch(`${API_URL}/register`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                name: name,
+                username: name,
+                email: email,
+                password: password,
+                role: role
+            })
+        });
 
         const data = await response.json();
 
-        if (!response.ok || !data.success) {
-            message.textContent =
-                data.error || "Registration failed.";
+        if (!response.ok || data.success === false) {
+            alert(data.error || "Registration failed.");
             return;
         }
 
-        message.textContent =
-            "Registration successful! Please login.";
+        alert("Registration successful. Please log in.");
 
-        document
-            .getElementById("registerForm")
-            .reset();
-
-        setTimeout(() => {
-            showLogin();
-        }, 1000);
+        event.target.reset();
+        showSection("login");
 
     } catch (error) {
-
-        console.error(
-            "Registration error:",
-            error
-        );
-
-        message.textContent =
-            "Cannot connect to server.";
+        console.error("Registration error:", error);
+        alert("Unable to connect to the server.");
     }
 }
 
+async function handleLogin(event) {
+    event.preventDefault();
 
-// ======================================================
-// LOGIN
-// ======================================================
+    const username = document.getElementById("loginUsername")?.value.trim();
+    const password = document.getElementById("loginPassword")?.value;
 
-async function login() {
-
-    const email =
-        document.getElementById("loginEmail").value.trim();
-
-    const password =
-        document.getElementById("loginPassword").value;
-
-    const message =
-        document.getElementById("loginMessage");
-
-    if (!email || !password) {
-        message.textContent =
-            "Please enter email and password.";
+    if (!username || !password) {
+        alert("Please enter your username/email and password.");
         return;
     }
 
     try {
-
-        const response = await fetch(
-            `${API_URL}/login`,
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    email,
-                    password
-                })
-            }
-        );
+        const response = await fetch(`${API_URL}/login`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                username: username,
+                password: password
+            })
+        });
 
         const data = await response.json();
 
-        if (!response.ok || !data.success) {
-            message.textContent =
-                data.error || "Login failed.";
+        if (!response.ok || data.success === false) {
+            alert(data.error || "Login failed.");
             return;
         }
 
@@ -237,70 +157,245 @@ async function login() {
             JSON.stringify(currentUser)
         );
 
-        document
-            .getElementById("loginForm")
-            .reset();
+        event.target.reset();
 
-        message.textContent =
-            "Login successful!";
-
-        showSection("productsSection");
-
+        showSection("products");
         await loadProducts();
-        await loadCart();
-        await loadOrders();
 
     } catch (error) {
-
-        console.error(
-            "Login error:",
-            error
-        );
-
-        message.textContent =
-            "Cannot connect to server.";
+        console.error("Login error:", error);
+        alert("Unable to connect to the server.");
     }
 }
 
-
-// ======================================================
-// LOGOUT
-// ======================================================
-
 function logout() {
-
     currentUser = null;
-
-    localStorage.removeItem(
-        "berciimart_user"
-    );
-
-    products = [];
     cart = [];
     orders = [];
 
-    showSection("loginSection");
+    localStorage.removeItem("berciimart_user");
+
+    showSection("login");
 }
 
+async function loadProducts() {
+    const container = document.getElementById("productsContainer");
 
-// ======================================================
-// PRODUCT IMAGES
-// ======================================================
+    if (!container) {
+        console.error("productsContainer not found.");
+        return;
+    }
+
+    container.innerHTML = "<p>Loading products...</p>";
+
+    try {
+        const response = await fetch(`${API_URL}/products`);
+
+        const data = await response.json();
+
+        if (!response.ok || data.success === false) {
+            throw new Error(data.error || "Failed to load products.");
+        }
+
+        products = Array.isArray(data.products)
+            ? data.products
+            : [];
+
+        populateCategories();
+
+        displayProducts();
+
+    } catch (error) {
+        console.error("Product loading error:", error);
+
+        container.innerHTML = `
+            <p class="error">
+                Unable to load products.
+            </p>
+        `;
+    }
+}
+
+function populateCategories() {
+    const categoryFilter =
+        document.getElementById("categoryFilter");
+
+    if (!categoryFilter) {
+        return;
+    }
+
+    const currentValue = categoryFilter.value;
+
+    const categories = [
+        ...new Set(
+            products
+                .map(product => product.category)
+                .filter(category => category)
+        )
+    ];
+
+    categoryFilter.innerHTML =
+        `<option value="">All Categories</option>`;
+
+    categories.forEach(category => {
+        const option = document.createElement("option");
+
+        option.value = category;
+        option.textContent = category;
+
+        categoryFilter.appendChild(option);
+    });
+
+    categoryFilter.value = currentValue;
+}
+
+function displayProducts() {
+    const container =
+        document.getElementById("productsContainer");
+
+    if (!container) {
+        return;
+    }
+
+    const searchInput =
+        document.getElementById("productSearch");
+
+    const categoryFilter =
+        document.getElementById("categoryFilter");
+
+    const searchTerm =
+        (searchInput?.value || "").toLowerCase().trim();
+
+    const selectedCategory =
+        categoryFilter?.value || "";
+
+    const filteredProducts = products.filter(product => {
+        const name =
+            String(product.name || "").toLowerCase();
+
+        const description =
+            String(product.description || "").toLowerCase();
+
+        const category =
+            String(product.category || "");
+
+        const matchesSearch =
+            !searchTerm ||
+            name.includes(searchTerm) ||
+            description.includes(searchTerm);
+
+        const matchesCategory =
+            !selectedCategory ||
+            category === selectedCategory;
+
+        return matchesSearch && matchesCategory;
+    });
+
+    if (filteredProducts.length === 0) {
+        container.innerHTML =
+            "<p>No products found.</p>";
+        return;
+    }
+
+    container.innerHTML = filteredProducts
+        .map(product => createProductCard(product))
+        .join("");
+}
+
+function createProductCard(product) {
+    const id = Number(product.id) || 0;
+
+    const name =
+        escapeHtml(product.name || "Product");
+
+    const description =
+        escapeHtml(product.description || "");
+
+    const category =
+        escapeHtml(product.category || "General");
+
+    const price =
+        Number(product.price || 0).toFixed(2);
+
+    const quantity =
+        Number(product.quantity || 0);
+
+    const image =
+        escapeHtml(getProductImage(product));
+
+    const disabled =
+        quantity <= 0 ? "disabled" : "";
+
+    const stockText =
+        quantity > 0
+            ? `Stock: ${quantity}`
+            : "Out of stock";
+
+    return `
+        <div class="product-card">
+            <img
+                src="${image}"
+                alt="${name}"
+                class="product-image"
+                onerror="this.src='https://via.placeholder.com/600x400?text=BerciiMart'"
+            >
+
+            <div class="product-info">
+                <h3>${name}</h3>
+
+                <p>${description}</p>
+
+                <p>
+                    <strong>Category:</strong>
+                    ${category}
+                </p>
+
+                <p class="price">
+                    ₹${price}
+                </p>
+
+                <p>${stockText}</p>
+
+                <button
+                    onclick="addToCart(${id})"
+                    ${disabled}
+                >
+                    Add to Cart
+                </button>
+            </div>
+        </div>
+    `;
+}
 
 function getProductImage(product) {
-
     if (
         product &&
         product.image_url &&
-        product.image_url.trim() !== ""
+        String(product.image_url).trim() !== ""
     ) {
-        return product.image_url;
+        return String(product.image_url).trim();
     }
 
     const name =
-        String(product?.name || "").toLowerCase();
+        String(product?.name || "")
+            .toLowerCase()
+            .trim();
 
-    // Laptop
+    /*
+     * IMPORTANT:
+     * Headphones are checked BEFORE phone because
+     * "headphones" contains the word "phone".
+     */
+
+    if (
+        name.includes("headphone") ||
+        name.includes("earphone") ||
+        name.includes("airpod") ||
+        name.includes("earbud")
+    ) {
+        return "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=600&q=80";
+    }
+
     if (
         name.includes("laptop") ||
         name.includes("computer") ||
@@ -309,44 +404,33 @@ function getProductImage(product) {
         return "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=600&q=80";
     }
 
-    // Phone
     if (
-        name.includes("phone") ||
+        name.includes("smartphone") ||
+        name.includes("mobile phone") ||
         name.includes("iphone") ||
-        name.includes("samsung")
+        name.includes("samsung") ||
+        name === "phone" ||
+        name.endsWith(" phone")
     ) {
         return "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=600&q=80";
     }
 
-    // Keyboard
     if (name.includes("keyboard")) {
         return "https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=600&q=80";
     }
 
-    // Mouse
     if (name.includes("mouse")) {
         return "https://images.unsplash.com/photo-1527814050087-3793815479db?auto=format&fit=crop&w=600&q=80";
     }
 
-    // Headphones
     if (
-        name.includes("headphone") ||
-        name.includes("earphone") ||
-        name.includes("airpod")
-    ) {
-        return "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=600&q=80";
-    }
-
-    // T-shirt
-    if (
-        name.includes("shirt") ||
+        name.includes("t-shirt") ||
         name.includes("tshirt") ||
-        name.includes("t-shirt")
+        name.includes("shirt")
     ) {
         return "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=600&q=80";
     }
 
-    // Shoes
     if (
         name.includes("shoe") ||
         name.includes("sneaker") ||
@@ -355,28 +439,24 @@ function getProductImage(product) {
         return "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=600&q=80";
     }
 
-    // Watch
     if (
-        name.includes("watch") ||
-        name.includes("smartwatch")
+        name.includes("smartwatch") ||
+        name.includes("watch")
     ) {
         return "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&q=80";
     }
 
-    // Bag
     if (
-        name.includes("bag") ||
-        name.includes("backpack")
+        name.includes("backpack") ||
+        name.includes("bag")
     ) {
         return "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=600&q=80";
     }
 
-    // Camera
     if (name.includes("camera")) {
         return "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=600&q=80";
     }
 
-    // Books
     if (
         name.includes("book") ||
         name.includes("python") ||
@@ -386,7 +466,6 @@ function getProductImage(product) {
         return "https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=600&q=80";
     }
 
-    // Rice
     if (name.includes("rice")) {
         return "https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=600&q=80";
     }
@@ -394,387 +473,43 @@ function getProductImage(product) {
     return "https://via.placeholder.com/600x400?text=BerciiMart";
 }
 
-
-// ======================================================
-// LOAD PRODUCTS
-// ======================================================
-
-async function loadProducts() {
-
-    const container =
-        document.getElementById("productsContainer");
-
-    if (!container) {
-        console.error(
-            "productsContainer not found."
-        );
+async function addToCart(productId) {
+    if (!currentUser) {
+        alert("Please log in first.");
+        showSection("login");
         return;
     }
-
-    container.innerHTML =
-        "<p>Loading products...</p>";
 
     try {
-
-        const response =
-            await fetch(`${API_URL}/products`);
-
-        const data =
-            await response.json();
-
-        if (!response.ok || !data.success) {
-
-            console.error(
-                data.error || "Failed to load products"
-            );
-
-            container.innerHTML =
-                "<p>Unable to load products.</p>";
-
-            return;
-        }
-
-        products =
-            Array.isArray(data.products)
-                ? data.products
-                : [];
-
-        populateCategories();
-
-        displayProducts(products);
-
-    } catch (error) {
-
-        console.error(
-            "Product loading error:",
-            error
-        );
-
-        container.innerHTML =
-            "<p>Cannot connect to server.</p>";
-    }
-}
-
-
-// ======================================================
-// POPULATE CATEGORIES
-// ======================================================
-
-function populateCategories() {
-
-    const filter =
-        document.getElementById("categoryFilter");
-
-    if (!filter) {
-        return;
-    }
-
-    const categories = [
-        ...new Set(
-            products
-                .map((product) =>
-                    product.category || "General"
-                )
-                .filter(Boolean)
-        )
-    ];
-
-    filter.innerHTML =
-        `<option value="">All Categories</option>`;
-
-    categories.forEach((category) => {
-
-        const option =
-            document.createElement("option");
-
-        option.value = category;
-        option.textContent = category;
-
-        filter.appendChild(option);
-    });
-}
-
-
-// ======================================================
-// DISPLAY PRODUCTS
-// ======================================================
-
-function displayProducts(list = products) {
-
-    const container =
-        document.getElementById("productsContainer");
-
-    if (!container) {
-        return;
-    }
-
-    if (!list.length) {
-
-        container.innerHTML =
-            "<p>No products available.</p>";
-
-        return;
-    }
-
-    container.innerHTML =
-        list.map((product) => {
-
-            const image =
-                getProductImage(product);
-
-            const quantity =
-                Number(product.quantity || 0);
-
-            const price =
-                Number(product.price || 0);
-
-            return `
-                <div class="product-card">
-
-                    <img
-                        src="${image}"
-                        alt="${escapeHtml(product.name)}"
-                        class="product-image"
-                        onerror="this.src='https://via.placeholder.com/600x400?text=BerciiMart'"
-                    >
-
-                    <h3>
-                        ${escapeHtml(product.name)}
-                    </h3>
-
-                    <p>
-                        ${escapeHtml(
-                            product.description || ""
-                        )}
-                    </p>
-
-                    <p>
-                        Category:
-                        ${escapeHtml(
-                            product.category || "General"
-                        )}
-                    </p>
-
-                    <p>
-                        Price:
-                        ₹${price.toFixed(2)}
-                    </p>
-
-                    <p>
-                        Available:
-                        ${quantity}
-                    </p>
-
-                    <button
-                        onclick="addToCart(${Number(product.id)})"
-                        ${quantity <= 0 ? "disabled" : ""}
-                    >
-                        ${
-                            quantity <= 0
-                                ? "Out of Stock"
-                                : "Add to Cart"
-                        }
-                    </button>
-
-                </div>
-            `;
-
-        }).join("");
-}
-
-
-// ======================================================
-// SEARCH + CATEGORY FILTER
-// ======================================================
-
-function applyProductFilters() {
-
-    const searchInput =
-        document.getElementById("productSearch");
-
-    const categoryFilter =
-        document.getElementById("categoryFilter");
-
-    const search =
-        searchInput
-            ? searchInput.value.toLowerCase().trim()
-            : "";
-
-    const category =
-        categoryFilter
-            ? categoryFilter.value.toLowerCase()
-            : "";
-
-    const filtered =
-        products.filter((product) => {
-
-            const name =
-                String(product.name || "")
-                    .toLowerCase();
-
-            const description =
-                String(product.description || "")
-                    .toLowerCase();
-
-            const productCategory =
-                String(product.category || "General")
-                    .toLowerCase();
-
-            const matchesSearch =
-                !search ||
-                name.includes(search) ||
-                description.includes(search);
-
-            const matchesCategory =
-                !category ||
-                productCategory === category;
-
-            return (
-                matchesSearch &&
-                matchesCategory
-            );
+        const response = await fetch(`${API_URL}/cart`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-User-Id": String(currentUser.id)
+            },
+            body: JSON.stringify({
+                user_id: currentUser.id,
+                product_id: productId,
+                quantity: 1
+            })
         });
 
-    displayProducts(filtered);
-}
+        const data = await response.json();
 
-function searchProducts() {
-    applyProductFilters();
-}
-
-function filterProducts() {
-    applyProductFilters();
-}
-
-
-// ======================================================
-// ADD TO CART
-// ======================================================
-
-async function addToCart(productId) {
-
-    if (!currentUser) {
-
-        alert("Please login first.");
-        showLogin();
-
-        return;
-    }
-
-    try {
-
-        const response =
-            await fetch(
-                `${API_URL}/cart`,
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "X-User-Id":
-                            String(currentUser.id)
-                    },
-                    body: JSON.stringify({
-                        user_id: currentUser.id,
-                        product_id: productId,
-                        quantity: 1
-                    })
-                }
-            );
-
-        const data =
-            await response.json();
-
-        if (!response.ok || !data.success) {
-
-            alert(
-                data.error ||
-                "Failed to add product to cart."
-            );
-
+        if (!response.ok || data.success === false) {
+            alert(data.error || "Unable to add product to cart.");
             return;
         }
 
-        alert("Product added to cart!");
-
-        await loadCart();
+        alert("Product added to cart.");
 
     } catch (error) {
-
-        console.error(
-            "Add to cart error:",
-            error
-        );
-
-        alert(
-            "Cannot connect to server."
-        );
+        console.error("Add to cart error:", error);
+        alert("Unable to connect to the server.");
     }
 }
-
-
-// ======================================================
-// LOAD CART
-// ======================================================
 
 async function loadCart() {
-
-    if (!currentUser) {
-        return;
-    }
-
-    try {
-
-        const response =
-            await fetch(
-                `${API_URL}/cart`,
-                {
-                    headers: {
-                        "X-User-Id":
-                            String(currentUser.id)
-                    }
-                }
-            );
-
-        const data =
-            await response.json();
-
-        if (!response.ok || !data.success) {
-
-            console.error(
-                data.error ||
-                "Failed to load cart"
-            );
-
-            return;
-        }
-
-        cart =
-            Array.isArray(data.items)
-                ? data.items
-                : Array.isArray(data.cart)
-                    ? data.cart
-                    : [];
-
-        displayCart(
-            Number(data.total || 0)
-        );
-
-    } catch (error) {
-
-        console.error(
-            "Cart error:",
-            error
-        );
-    }
-}
-
-
-// ======================================================
-// DISPLAY CART
-// ======================================================
-
-function displayCart(total) {
-
     const container =
         document.getElementById("cartContainer");
 
@@ -785,220 +520,117 @@ function displayCart(total) {
         return;
     }
 
-    if (!cart.length) {
-
+    if (!currentUser) {
         container.innerHTML =
-            "<p>Your cart is empty.</p>";
+            "<p>Please log in to view your cart.</p>";
 
         if (totalElement) {
-            totalElement.textContent =
-                "₹0.00";
+            totalElement.textContent = "₹0.00";
         }
 
-        return;
-    }
-
-    container.innerHTML =
-        cart.map((item) => {
-
-            const product =
-                products.find(
-                    (p) =>
-                        Number(p.id) ===
-                        Number(item.product_id)
-                );
-
-            const image =
-                product
-                    ? getProductImage(product)
-                    : getProductImage({
-                        name: item.name
-                    });
-
-            return `
-                <div class="cart-item">
-
-                    <img
-                        src="${image}"
-                        alt="${escapeHtml(item.name || "")}"
-                        class="cart-image"
-                        onerror="this.src='https://via.placeholder.com/300x200?text=BerciiMart'"
-                    >
-
-                    <div>
-
-                        <h3>
-                            ${escapeHtml(
-                                item.name || ""
-                            )}
-                        </h3>
-
-                        <p>
-                            Price:
-                            ₹${Number(
-                                item.price || 0
-                            ).toFixed(2)}
-                        </p>
-
-                        <p>
-                            Quantity:
-                            ${Number(
-                                item.quantity || 0
-                            )}
-                        </p>
-
-                        <p>
-                            Subtotal:
-                            ₹${Number(
-                                item.subtotal || 0
-                            ).toFixed(2)}
-                        </p>
-
-                    </div>
-
-                </div>
-            `;
-
-        }).join("");
-
-    if (totalElement) {
-        totalElement.textContent =
-            `₹${Number(total || 0).toFixed(2)}`;
-    }
-}
-
-
-// ======================================================
-// CHECKOUT
-// ======================================================
-
-async function checkout() {
-
-    if (!currentUser) {
-
-        alert("Please login first.");
-        return;
-    }
-
-    if (!cart.length) {
-
-        alert("Your cart is empty.");
         return;
     }
 
     try {
+        const response = await fetch(`${API_URL}/cart`, {
+            headers: {
+                "X-User-Id": String(currentUser.id)
+            }
+        });
 
-        const response =
-            await fetch(
-                `${API_URL}/checkout`,
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "X-User-Id":
-                            String(currentUser.id)
-                    },
-                    body: JSON.stringify({
-                        user_id: currentUser.id
-                    })
-                }
-            );
+        const data = await response.json();
 
-        const data =
-            await response.json();
+        if (!response.ok || data.success === false) {
+            throw new Error(data.error || "Failed to load cart.");
+        }
 
-        if (!response.ok || !data.success) {
+        cart = Array.isArray(data.items)
+            ? data.items
+            : [];
 
-            alert(
-                data.error ||
-                "Checkout failed."
-            );
+        if (cart.length === 0) {
+            container.innerHTML =
+                "<p>Your cart is empty.</p>";
+
+            if (totalElement) {
+                totalElement.textContent = "₹0.00";
+            }
 
             return;
         }
 
-        alert(
-            "Order placed successfully!"
-        );
+        container.innerHTML = cart
+            .map(item => {
+                const name =
+                    escapeHtml(item.name || "Product");
+
+                const quantity =
+                    Number(item.quantity || 0);
+
+                const price =
+                    Number(item.price || 0);
+
+                return `
+                    <div class="cart-item">
+                        <strong>${name}</strong>
+                        <span>
+                            ₹${price.toFixed(2)}
+                            × ${quantity}
+                        </span>
+                    </div>
+                `;
+            })
+            .join("");
+
+        if (totalElement) {
+            totalElement.textContent =
+                `₹${Number(data.total || 0).toFixed(2)}`;
+        }
+
+    } catch (error) {
+        console.error("Cart error:", error);
+        container.innerHTML =
+            "<p>Unable to load cart.</p>";
+    }
+}
+
+async function checkout() {
+    if (!currentUser) {
+        alert("Please log in first.");
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/checkout`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-User-Id": String(currentUser.id)
+            },
+            body: JSON.stringify({
+                user_id: currentUser.id
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || data.success === false) {
+            alert(data.error || "Checkout failed.");
+            return;
+        }
+
+        alert("Order placed successfully.");
 
         await loadCart();
         await loadOrders();
 
-        showSection("ordersSection");
-
     } catch (error) {
-
-        console.error(
-            "Checkout error:",
-            error
-        );
-
-        alert(
-            "Cannot connect to server."
-        );
+        console.error("Checkout error:", error);
+        alert("Unable to connect to the server.");
     }
 }
-
-
-// ======================================================
-// LOAD ORDERS
-// ======================================================
 
 async function loadOrders() {
-
-    if (!currentUser) {
-        return;
-    }
-
-    try {
-
-        const response =
-            await fetch(
-                `${API_URL}/orders`,
-                {
-                    headers: {
-                        "X-User-Id":
-                            String(currentUser.id)
-                    }
-                }
-            );
-
-        const data =
-            await response.json();
-
-        if (!response.ok || !data.success) {
-
-            console.error(
-                data.error ||
-                "Failed to load orders"
-            );
-
-            return;
-        }
-
-        orders =
-            Array.isArray(data.orders)
-                ? data.orders
-                : [];
-
-        displayOrders();
-
-    } catch (error) {
-
-        console.error(
-            "Orders error:",
-            error
-        );
-    }
-}
-
-
-// ======================================================
-// DISPLAY ORDERS
-// ======================================================
-
-function displayOrders() {
-
     const container =
         document.getElementById("ordersContainer");
 
@@ -1006,103 +638,69 @@ function displayOrders() {
         return;
     }
 
-    if (!orders.length) {
-
+    if (!currentUser) {
         container.innerHTML =
-            "<p>No orders found.</p>";
-
+            "<p>Please log in to view your orders.</p>";
         return;
     }
 
-    container.innerHTML =
-        orders.map((order) => {
+    try {
+        const response = await fetch(`${API_URL}/orders`, {
+            headers: {
+                "X-User-Id": String(currentUser.id)
+            }
+        });
 
-            const total =
-                Number(
-                    order.total_amount ??
-                    order.total ??
-                    0
-                );
+        const data = await response.json();
 
-            return `
-                <div class="order-card">
+        if (!response.ok || data.success === false) {
+            throw new Error(data.error || "Failed to load orders.");
+        }
 
-                    <h3>
-                        Order #${Number(order.id)}
-                    </h3>
+        orders = Array.isArray(data.orders)
+            ? data.orders
+            : [];
 
-                    <p>
-                        Total:
-                        ₹${total.toFixed(2)}
-                    </p>
+        if (orders.length === 0) {
+            container.innerHTML =
+                "<p>No orders found.</p>";
+            return;
+        }
 
-                    <p>
-                        Status:
-                        ${escapeHtml(
-                            order.status || "Placed"
-                        )}
-                    </p>
+        container.innerHTML = orders
+            .map(order => {
+                return `
+                    <div class="order-card">
+                        <h3>Order #${Number(order.id)}</h3>
+                        <p>
+                            Total:
+                            ₹${Number(order.total_amount || 0).toFixed(2)}
+                        </p>
+                        <p>
+                            Status:
+                            ${escapeHtml(order.status || "PENDING")}
+                        </p>
+                        <p>
+                            Date:
+                            ${escapeHtml(order.order_date || "")}
+                        </p>
+                    </div>
+                `;
+            })
+            .join("");
 
-                    <p>
-                        Date:
-                        ${escapeHtml(
-                            order.order_date || ""
-                        )}
-                    </p>
-
-                </div>
-            `;
-
-        }).join("");
+    } catch (error) {
+        console.error("Orders error:", error);
+        container.innerHTML =
+            "<p>Unable to load orders.</p>";
+    }
 }
-
-
-// ======================================================
-// HTML ESCAPING
-// ======================================================
 
 function escapeHtml(value) {
-
-    return String(value ?? "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+    return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
 }
-
-
-// ======================================================
-// SEARCH EVENT
-// ======================================================
-
-document.addEventListener(
-    "input",
-    (event) => {
-
-        if (
-            event.target &&
-            event.target.id === "productSearch"
-        ) {
-            searchProducts();
-        }
-    }
-);
-
-
-// ======================================================
-// CATEGORY EVENT
-// ======================================================
-
-document.addEventListener(
-    "change",
-    (event) => {
-
-        if (
-            event.target &&
-            event.target.id === "categoryFilter"
-        ) {
-            filterProducts();
-        }
-    }
-);
