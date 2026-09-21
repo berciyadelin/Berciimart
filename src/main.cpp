@@ -82,7 +82,7 @@ int main()
 
             PGresult* result = PQexec(
                 conn,
-                "SELECT id, name, price, quantity "
+                "SELECT id, name, price, quantity, image_url "
                 "FROM public.products "
                 "ORDER BY id"
             );
@@ -124,6 +124,9 @@ int main()
 
                 product["quantity"] =
                     std::stoi(PQgetvalue(result, i, 3));
+
+                product["image_url"] =
+                    PQgetvalue(result, i, 4);
 
                 response["products"].append(product);
             }
@@ -816,9 +819,6 @@ int main()
             std::string totalString =
                 std::to_string(total);
 
-            // IMPORTANT:
-            // Build the query as std::string,
-            // then use .c_str() in PQexecParams.
             std::string orderQuery =
                 "INSERT INTO public.orders "
                 "(user_id, total_amount, status, order_date) "
@@ -829,7 +829,7 @@ int main()
 
             PGresult* orderResult = PQexecParams(
                 conn,
-                orderQuery.c_str(),   // FIX
+                orderQuery.c_str(),
                 1,
                 nullptr,
                 params,
@@ -940,7 +940,7 @@ int main()
 
                 PGresult* stockResult = PQexecParams(
                     conn,
-                    "UPDATE public.products"
+                    "UPDATE public.products "
                     "SET quantity = quantity - $1 "
                     "WHERE id = $2",
                     2,
