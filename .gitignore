@@ -24,3 +24,8 @@ src/*_backup.cpp
 !database/seed.sql
 !database/migrations/*.sql
 vcpkg_installed/
+/berciimart.exe
+/berciimart_backup.sql
+/src/repository/vc140.pdb
+/src/vc140.pdbs
+src/vc140.pdb
