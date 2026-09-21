@@ -83,7 +83,7 @@ int main()
             PGresult* result = PQexec(
                 conn,
                 "SELECT id, name, price, quantity "
-                "FROM public.products"
+                "FROM public.products "
                 "ORDER BY id"
             );
 
