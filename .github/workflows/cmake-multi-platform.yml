@@ -50,7 +50,7 @@ jobs:
       if: runner.os == 'Linux'
       run: |
         sudo apt-get update
-        sudo apt-get install -y libargon2-dev libpq-dev libdrogon-dev libjsoncpp-dev default-libmysqlclient-dev libssl-dev libhiredis-dev libyaml-cpp-dev libc-ares-dev
+        sudo apt-get install -y libargon2-dev libpq-dev libdrogon-dev libjsoncpp-dev default-libmysqlclient-dev libssl-dev libhiredis-dev libyaml-cpp-dev libc-ares-dev uuid-dev zlib1g-dev libbrotli-dev
 
     - name: Install dependencies on Windows
       if: runner.os == 'Windows'
