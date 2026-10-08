@@ -8,6 +8,7 @@ CREATE TABLE users (
     name VARCHAR(100) NOT NULL,
     email VARCHAR(150) UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
+    role VARCHAR(20) NOT NULL DEFAULT 'BUYER',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -20,6 +21,8 @@ CREATE TABLE products (
     price NUMERIC(10,2) NOT NULL,
     quantity INTEGER NOT NULL DEFAULT 0,
     category_id INTEGER,
+    category VARCHAR(50),
+    image_url TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -51,7 +54,7 @@ CREATE TABLE orders (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL,
     total_amount NUMERIC(10,2) NOT NULL,
-    status VARCHAR(30) NOT NULL DEFAULT 'PLACED',
+    status VARCHAR(30) NOT NULL DEFAULT 'CONFIRMED',
     order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT fk_orders_user

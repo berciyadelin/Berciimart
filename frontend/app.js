@@ -69,6 +69,14 @@ function showSection(sectionName) {
     }
 }
 
+function showRegister() {
+    showSection("register");
+}
+
+function showLogin() {
+    showSection("login");
+}
+
 async function handleRegister(event) {
     event.preventDefault();
 
@@ -544,9 +552,9 @@ async function loadCart() {
             throw new Error(data.error || "Failed to load cart.");
         }
 
-        cart = Array.isArray(data.items)
-            ? data.items
-            : [];
+        cart = Array.isArray(data.cart)
+            ? data.cart
+            : (Array.isArray(data.items) ? data.items : []);
 
         if (cart.length === 0) {
             container.innerHTML =

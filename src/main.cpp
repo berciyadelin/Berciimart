@@ -3,6 +3,7 @@
 #include <argon2.h>
 #include <cstdlib>
 #include <iostream>
+#include <random>
 #include <string>
 
 using namespace drogon;
@@ -82,7 +83,7 @@ int main()
 
             PGresult* result = PQexec(
                 conn,
-                "SELECT id, name, price, quantity, image_url "
+                "SELECT id, name, description, price, quantity, category, image_url "
                 "FROM public.products "
                 "ORDER BY id"
             );
@@ -119,14 +120,20 @@ int main()
                 product["name"] =
                     PQgetvalue(result, i, 1);
 
+                product["description"] =
+                    PQgetvalue(result, i, 2);
+
                 product["price"] =
-                    std::stod(PQgetvalue(result, i, 2));
+                    std::stod(PQgetvalue(result, i, 3));
 
                 product["quantity"] =
-                    std::stoi(PQgetvalue(result, i, 3));
+                    std::stoi(PQgetvalue(result, i, 4));
+
+                product["category"] =
+                    PQgetvalue(result, i, 5);
 
                 product["image_url"] =
-                    PQgetvalue(result, i, 4);
+                    PQgetvalue(result, i, 6);
 
                 response["products"].append(product);
             }
@@ -240,7 +247,14 @@ int main()
 
             PQclear(checkResult);
 
-            // Password hash
+            // Password hash with random salt
+            unsigned char salt[16];
+            std::random_device rd;
+            for (size_t i = 0; i < sizeof(salt); i++)
+            {
+                salt[i] = static_cast<unsigned char>(rd() & 0xFF);
+            }
+
             char hash[256];
 
             int hashResult = argon2id_hash_encoded(
@@ -249,8 +263,8 @@ int main()
                 1,
                 password.c_str(),
                 password.length(),
-                nullptr,
-                0,
+                salt,
+                sizeof(salt),
                 32,
                 hash,
                 sizeof(hash)
@@ -623,11 +637,46 @@ int main()
                 return;
             }
 
+            std::string productIdString = std::to_string(productId);
+            const char* checkParams[1] = { productIdString.c_str() };
+
+            PGresult* prodCheck = PQexecParams(
+                conn,
+                "SELECT quantity FROM public.products WHERE id = $1",
+                1,
+                nullptr,
+                checkParams,
+                nullptr,
+                nullptr,
+                0
+            );
+
+            if (PQresultStatus(prodCheck) != PGRES_TUPLES_OK)
+            {
+                std::string error = PQerrorMessage(conn);
+                PQclear(prodCheck);
+                callback(jsonError("Database error checking product: " + error, k500InternalServerError));
+                return;
+            }
+
+            if (PQntuples(prodCheck) == 0)
+            {
+                PQclear(prodCheck);
+                callback(jsonError("Product not found", k404NotFound));
+                return;
+            }
+
+            int stock = std::stoi(PQgetvalue(prodCheck, 0, 0));
+            PQclear(prodCheck);
+
+            if (quantity > stock)
+            {
+                callback(jsonError("Insufficient stock available"));
+                return;
+            }
+
             std::string userIdString =
                 std::to_string(userId);
-
-            std::string productIdString =
-                std::to_string(productId);
 
             std::string quantityString =
                 std::to_string(quantity);
@@ -824,7 +873,7 @@ int main()
                 "(user_id, total_amount, status, order_date) "
                 "VALUES ($1, " +
                 totalString +
-                ", 'PLACED', CURRENT_TIMESTAMP) "
+                ", 'CONFIRMED', CURRENT_TIMESTAMP) "
                 "RETURNING id";
 
             PGresult* orderResult = PQexecParams(
