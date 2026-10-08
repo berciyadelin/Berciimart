@@ -28,8 +28,29 @@ document.addEventListener("DOMContentLoaded", () => {
         categoryFilter.addEventListener("change", displayProducts);
     }
 
+    const savedUser = localStorage.getItem("berciimart_user");
+    if (savedUser) {
+        try {
+            currentUser = JSON.parse(savedUser);
+            if (currentUser && currentUser.id) {
+                showSection("products");
+                return;
+            }
+        } catch (e) {
+            console.error("Failed to parse saved user from localStorage:", e);
+        }
+    }
+
     showSection("login");
 });
+
+function showRegister() {
+    showSection("register");
+}
+
+function showLogin() {
+    showSection("login");
+}
 
 function showSection(sectionName) {
     const sections = document.querySelectorAll(".section");
@@ -118,7 +139,8 @@ async function handleRegister(event) {
 async function handleLogin(event) {
     event.preventDefault();
 
-    const username = document.getElementById("loginUsername")?.value.trim();
+    const usernameInput = document.getElementById("loginEmail") || document.getElementById("loginUsername");
+    const username = usernameInput?.value.trim();
     const password = document.getElementById("loginPassword")?.value;
 
     if (!username || !password) {
@@ -544,9 +566,9 @@ async function loadCart() {
             throw new Error(data.error || "Failed to load cart.");
         }
 
-        cart = Array.isArray(data.items)
-            ? data.items
-            : [];
+        cart = Array.isArray(data.cart)
+            ? data.cart
+            : (Array.isArray(data.items) ? data.items : []);
 
         if (cart.length === 0) {
             container.innerHTML =
