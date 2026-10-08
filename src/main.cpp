@@ -49,6 +49,13 @@ bool isValidUserId(int userId)
     return userId > 0;
 }
 
+void addCorsHeaders(const HttpResponsePtr& resp)
+{
+    resp->addHeader("Access-Control-Allow-Origin", "*");
+    resp->addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
+    resp->addHeader("Access-Control-Allow-Headers", "Content-Type, X-User-Id, Authorization");
+}
+
 // =====================================================
 // MAIN
 // =====================================================
@@ -63,6 +70,18 @@ int main()
     }
 
     std::cout << "Database connected successfully!" << std::endl;
+
+    // CORS middleware advice
+    app().registerSyncAdvice([](const HttpRequestPtr &req) -> HttpResponsePtr {
+        if (req->method() == Options)
+        {
+            auto resp = HttpResponse::newHttpResponse();
+            addCorsHeaders(resp);
+            resp->setStatusCode(k200OK);
+            return resp;
+        }
+        return nullptr;
+    });
 
     // Frontend folder
     app().setDocumentRoot("./frontend");
@@ -94,10 +113,12 @@ int main()
 
                 PQclear(result);
 
-                callback(jsonError(
+                auto resp = jsonError(
                     "Failed to load products: " + error,
                     k500InternalServerError
-                ));
+                );
+                addCorsHeaders(resp);
+                callback(resp);
 
                 return;
             }
@@ -140,9 +161,9 @@ int main()
 
             PQclear(result);
 
-            callback(
-                HttpResponse::newHttpJsonResponse(response)
-            );
+            auto resp = HttpResponse::newHttpJsonResponse(response);
+            addCorsHeaders(resp);
+            callback(resp);
         },
         {Get}
     );
@@ -160,7 +181,9 @@ int main()
 
             if (!json)
             {
-                callback(jsonError("Invalid JSON"));
+                auto resp = jsonError("Invalid JSON");
+                addCorsHeaders(resp);
+                callback(resp);
                 return;
             }
 
@@ -187,9 +210,11 @@ int main()
                 email.empty() ||
                 password.empty())
             {
-                callback(jsonError(
+                auto resp = jsonError(
                     "Username, email and password are required"
-                ));
+                );
+                addCorsHeaders(resp);
+                callback(resp);
 
                 return;
             }
@@ -225,10 +250,12 @@ int main()
 
                 PQclear(checkResult);
 
-                callback(jsonError(
+                auto resp = jsonError(
                     "Database error: " + error,
                     k500InternalServerError
-                ));
+                );
+                addCorsHeaders(resp);
+                callback(resp);
 
                 return;
             }
@@ -237,10 +264,12 @@ int main()
             {
                 PQclear(checkResult);
 
-                callback(jsonError(
+                auto resp = jsonError(
                     "Email already registered",
                     k409Conflict
-                ));
+                );
+                addCorsHeaders(resp);
+                callback(resp);
 
                 return;
             }
@@ -272,10 +301,12 @@ int main()
 
             if (hashResult != ARGON2_OK)
             {
-                callback(jsonError(
+                auto resp = jsonError(
                     "Password hashing failed",
                     k500InternalServerError
-                ));
+                );
+                addCorsHeaders(resp);
+                callback(resp);
 
                 return;
             }
@@ -307,10 +338,12 @@ int main()
 
                 PQclear(result);
 
-                callback(jsonError(
+                auto resp = jsonError(
                     "Registration failed: " + error,
                     k500InternalServerError
-                ));
+                );
+                addCorsHeaders(resp);
+                callback(resp);
 
                 return;
             }
@@ -327,9 +360,9 @@ int main()
                 "Registration successful";
             response["user_id"] = userId;
 
-            callback(
-                HttpResponse::newHttpJsonResponse(response)
-            );
+            auto resp = HttpResponse::newHttpJsonResponse(response);
+            addCorsHeaders(resp);
+            callback(resp);
         },
         {Post}
     );
@@ -347,7 +380,9 @@ int main()
 
             if (!json)
             {
-                callback(jsonError("Invalid JSON"));
+                auto resp = jsonError("Invalid JSON");
+                addCorsHeaders(resp);
+                callback(resp);
                 return;
             }
 
@@ -365,9 +400,11 @@ int main()
 
             if (username.empty() || password.empty())
             {
-                callback(jsonError(
+                auto resp = jsonError(
                     "Username/email and password are required"
-                ));
+                );
+                addCorsHeaders(resp);
+                callback(resp);
 
                 return;
             }
@@ -396,10 +433,12 @@ int main()
 
                 PQclear(result);
 
-                callback(jsonError(
+                auto resp = jsonError(
                     "Login database error: " + error,
                     k500InternalServerError
-                ));
+                );
+                addCorsHeaders(resp);
+                callback(resp);
 
                 return;
             }
@@ -408,10 +447,12 @@ int main()
             {
                 PQclear(result);
 
-                callback(jsonError(
+                auto resp = jsonError(
                     "Invalid username/email or password",
                     k401Unauthorized
-                ));
+                );
+                addCorsHeaders(resp);
+                callback(resp);
 
                 return;
             }
@@ -441,10 +482,12 @@ int main()
             {
                 PQclear(result);
 
-                callback(jsonError(
+                auto resp = jsonError(
                     "Invalid username/email or password",
                     k401Unauthorized
-                ));
+                );
+                addCorsHeaders(resp);
+                callback(resp);
 
                 return;
             }
@@ -462,9 +505,9 @@ int main()
             response["email"] = email;
             response["role"] = role;
 
-            callback(
-                HttpResponse::newHttpJsonResponse(response)
-            );
+            auto resp = HttpResponse::newHttpJsonResponse(response);
+            addCorsHeaders(resp);
+            callback(resp);
         },
         {Post}
     );
@@ -482,10 +525,12 @@ int main()
 
             if (!isValidUserId(userId))
             {
-                callback(jsonError(
+                auto resp = jsonError(
                     "Invalid user ID",
                     k401Unauthorized
-                ));
+                );
+                addCorsHeaders(resp);
+                callback(resp);
 
                 return;
             }
@@ -521,10 +566,12 @@ int main()
 
                 PQclear(result);
 
-                callback(jsonError(
+                auto resp = jsonError(
                     "Failed to load cart: " + error,
                     k500InternalServerError
-                ));
+                );
+                addCorsHeaders(resp);
+                callback(resp);
 
                 return;
             }
@@ -571,9 +618,9 @@ int main()
 
             PQclear(result);
 
-            callback(
-                HttpResponse::newHttpJsonResponse(response)
-            );
+            auto resp = HttpResponse::newHttpJsonResponse(response);
+            addCorsHeaders(resp);
+            callback(resp);
         },
         {Get}
     );
@@ -599,17 +646,21 @@ int main()
 
             if (!isValidUserId(userId))
             {
-                callback(jsonError(
+                auto resp = jsonError(
                     "Invalid user ID",
                     k401Unauthorized
-                ));
+                );
+                addCorsHeaders(resp);
+                callback(resp);
 
                 return;
             }
 
             if (!json)
             {
-                callback(jsonError("Invalid JSON"));
+                auto resp = jsonError("Invalid JSON");
+                addCorsHeaders(resp);
+                callback(resp);
                 return;
             }
 
@@ -621,18 +672,18 @@ int main()
 
             if (productId <= 0)
             {
-                callback(jsonError(
-                    "Invalid product ID"
-                ));
+                auto resp = jsonError("Invalid product ID");
+                addCorsHeaders(resp);
+                callback(resp);
 
                 return;
             }
 
             if (quantity <= 0)
             {
-                callback(jsonError(
-                    "Quantity must be greater than 0"
-                ));
+                auto resp = jsonError("Quantity must be greater than 0");
+                addCorsHeaders(resp);
+                callback(resp);
 
                 return;
             }
@@ -655,14 +706,18 @@ int main()
             {
                 std::string error = PQerrorMessage(conn);
                 PQclear(prodCheck);
-                callback(jsonError("Database error checking product: " + error, k500InternalServerError));
+                auto resp = jsonError("Database error checking product: " + error, k500InternalServerError);
+                addCorsHeaders(resp);
+                callback(resp);
                 return;
             }
 
             if (PQntuples(prodCheck) == 0)
             {
                 PQclear(prodCheck);
-                callback(jsonError("Product not found", k404NotFound));
+                auto resp = jsonError("Product not found", k404NotFound);
+                addCorsHeaders(resp);
+                callback(resp);
                 return;
             }
 
@@ -671,7 +726,9 @@ int main()
 
             if (quantity > stock)
             {
-                callback(jsonError("Insufficient stock available"));
+                auto resp = jsonError("Insufficient stock available");
+                addCorsHeaders(resp);
+                callback(resp);
                 return;
             }
 
@@ -710,10 +767,12 @@ int main()
 
                 PQclear(result);
 
-                callback(jsonError(
+                auto resp = jsonError(
                     "Failed to add to cart: " + error,
                     k500InternalServerError
-                ));
+                );
+                addCorsHeaders(resp);
+                callback(resp);
 
                 return;
             }
@@ -730,9 +789,9 @@ int main()
                 "Product added to cart";
             response["cart_id"] = cartId;
 
-            callback(
-                HttpResponse::newHttpJsonResponse(response)
-            );
+            auto resp = HttpResponse::newHttpJsonResponse(response);
+            addCorsHeaders(resp);
+            callback(resp);
         },
         {Post}
     );
@@ -758,10 +817,12 @@ int main()
 
             if (!isValidUserId(userId))
             {
-                callback(jsonError(
+                auto resp = jsonError(
                     "Invalid user ID",
                     k401Unauthorized
-                ));
+                );
+                addCorsHeaders(resp);
+                callback(resp);
 
                 return;
             }
@@ -797,10 +858,12 @@ int main()
 
                 PQclear(cartResult);
 
-                callback(jsonError(
+                auto resp = jsonError(
                     "Failed to read cart: " + error,
                     k500InternalServerError
-                ));
+                );
+                addCorsHeaders(resp);
+                callback(resp);
 
                 return;
             }
@@ -811,9 +874,9 @@ int main()
             {
                 PQclear(cartResult);
 
-                callback(jsonError(
-                    "Cart is empty"
-                ));
+                auto resp = jsonError("Cart is empty");
+                addCorsHeaders(resp);
+                callback(resp);
 
                 return;
             }
@@ -835,9 +898,9 @@ int main()
                 {
                     PQclear(cartResult);
 
-                    callback(jsonError(
-                        "Insufficient stock"
-                    ));
+                    auto resp = jsonError("Insufficient stock");
+                    addCorsHeaders(resp);
+                    callback(resp);
 
                     return;
                 }
@@ -854,10 +917,12 @@ int main()
                 PQclear(beginResult);
                 PQclear(cartResult);
 
-                callback(jsonError(
+                auto resp = jsonError(
                     "Could not start transaction",
                     k500InternalServerError
-                ));
+                );
+                addCorsHeaders(resp);
+                callback(resp);
 
                 return;
             }
@@ -896,10 +961,12 @@ int main()
                 PQclear(orderResult);
                 PQclear(cartResult);
 
-                callback(jsonError(
+                auto resp = jsonError(
                     "Order creation failed: " + error,
                     k500InternalServerError
-                ));
+                );
+                addCorsHeaders(resp);
+                callback(resp);
 
                 return;
             }
@@ -968,10 +1035,12 @@ int main()
 
                     PQclear(cartResult);
 
-                    callback(jsonError(
+                    auto resp = jsonError(
                         "Failed to create order item",
                         k500InternalServerError
-                    ));
+                    );
+                    addCorsHeaders(resp);
+                    callback(resp);
 
                     return;
                 }
@@ -1008,10 +1077,12 @@ int main()
 
                     PQclear(cartResult);
 
-                    callback(jsonError(
+                    auto resp = jsonError(
                         "Failed to update stock",
                         k500InternalServerError
-                    ));
+                    );
+                    addCorsHeaders(resp);
+                    callback(resp);
 
                     return;
                 }
@@ -1040,10 +1111,12 @@ int main()
 
                 PQexec(conn, "ROLLBACK");
 
-                callback(jsonError(
+                auto resp = jsonError(
                     "Failed to clear cart",
                     k500InternalServerError
-                ));
+                );
+                addCorsHeaders(resp);
+                callback(resp);
 
                 return;
             }
@@ -1058,10 +1131,12 @@ int main()
             {
                 PQclear(commitResult);
 
-                callback(jsonError(
+                auto resp = jsonError(
                     "Checkout failed",
                     k500InternalServerError
-                ));
+                );
+                addCorsHeaders(resp);
+                callback(resp);
 
                 return;
             }
@@ -1076,9 +1151,9 @@ int main()
             response["order_id"] = orderId;
             response["total"] = total;
 
-            callback(
-                HttpResponse::newHttpJsonResponse(response)
-            );
+            auto resp = HttpResponse::newHttpJsonResponse(response);
+            addCorsHeaders(resp);
+            callback(resp);
         },
         {Post}
     );
@@ -1096,10 +1171,12 @@ int main()
 
             if (!isValidUserId(userId))
             {
-                callback(jsonError(
+                auto resp = jsonError(
                     "Invalid user ID",
                     k401Unauthorized
-                ));
+                );
+                addCorsHeaders(resp);
+                callback(resp);
 
                 return;
             }
@@ -1131,10 +1208,12 @@ int main()
 
                 PQclear(result);
 
-                callback(jsonError(
+                auto resp = jsonError(
                     "Failed to load orders: " + error,
                     k500InternalServerError
-                ));
+                );
+                addCorsHeaders(resp);
+                callback(resp);
 
                 return;
             }
@@ -1168,9 +1247,9 @@ int main()
 
             PQclear(result);
 
-            callback(
-                HttpResponse::newHttpJsonResponse(response)
-            );
+            auto resp = HttpResponse::newHttpJsonResponse(response);
+            addCorsHeaders(resp);
+            callback(resp);
         },
         {Get}
     );
@@ -1196,9 +1275,9 @@ int main()
                 ? "UP"
                 : "DOWN";
 
-            callback(
-                HttpResponse::newHttpJsonResponse(response)
-            );
+            auto resp = HttpResponse::newHttpJsonResponse(response);
+            addCorsHeaders(resp);
+            callback(resp);
         },
         {Get}
     );

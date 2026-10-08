@@ -28,6 +28,21 @@ document.addEventListener("DOMContentLoaded", () => {
         categoryFilter.addEventListener("change", displayProducts);
     }
 
+    // Restore user session if saved in localStorage
+    const savedUser = localStorage.getItem("berciimart_user");
+    if (savedUser) {
+        try {
+            currentUser = JSON.parse(savedUser);
+            if (currentUser && currentUser.id) {
+                showSection("products");
+                return;
+            }
+        } catch (e) {
+            console.error("Failed to parse saved user session:", e);
+            localStorage.removeItem("berciimart_user");
+        }
+    }
+
     showSection("login");
 });
 
