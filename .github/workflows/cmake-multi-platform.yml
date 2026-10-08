@@ -58,7 +58,7 @@ jobs:
       if: runner.os == 'Windows'
       shell: powershell
       run: |
-        C:\vcpkg\vcpkg.exe install --triplet ${{ matrix.triplet }}
+        C:\vcpkg\vcpkg.exe install drogon libpq argon2 --triplet ${{ matrix.triplet }}
 
     - name: Configure CMake (Linux)
       if: runner.os == 'Linux'
@@ -67,6 +67,7 @@ jobs:
         -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
         -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
         -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        -DCMAKE_PREFIX_PATH=/usr/lib/x86_64-linux-gnu/cmake/Drogon
         -S ${{ github.workspace }}
 
     - name: Configure CMake (Windows)
