@@ -52,7 +52,7 @@ jobs:
       if: runner.os == 'Linux'
       run: |
         sudo apt-get update
-        sudo apt-get install -y libargon2-dev libpq-dev libdrogon-dev libjsoncpp-dev default-libmysqlclient-dev libhiredis-dev libyaml-cpp-dev libc-ares-dev libssl-dev uuid-dev zlib1g-dev
+        sudo apt-get install -y libargon2-dev libpq-dev libdrogon-dev libjsoncpp-dev libmariadb-dev-compat libmariadb-dev libhiredis-dev libyaml-cpp-dev libc-ares-dev libssl-dev uuid-dev zlib1g-dev
 
     - name: Install dependencies via vcpkg (Windows)
       if: runner.os == 'Windows'
@@ -67,7 +67,6 @@ jobs:
         -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
         -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
         -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-        -DCMAKE_PREFIX_PATH=/usr/lib/x86_64-linux-gnu/cmake/Drogon
         -S ${{ github.workspace }}
 
     - name: Configure CMake (Windows)
