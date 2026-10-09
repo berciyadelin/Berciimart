@@ -163,6 +163,8 @@ The project aims to provide a practical foundation for understanding how a real-
 Berciya Delin G 
 
 B.Tech — Information Technology
+
 J. J. College of Engineering and Technology
+
 
 Built as a capstone project to apply programming, database, and software development concepts to a practical marketplace problem.
