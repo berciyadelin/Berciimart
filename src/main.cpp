@@ -84,10 +84,26 @@ int main()
 
             PGresult* result = PQexec(
                 conn,
-                "SELECT id, name, price, quantity, image_url "
+                "SELECT id, name, price, quantity, "
+                "image_url, description, category "
                 "FROM public.products "
                 "ORDER BY id"
             );
+
+            // Older deployments may predate the description and
+            // category columns. Fall back to the original query so
+            // product listing keeps working everywhere.
+            if (PQresultStatus(result) != PGRES_TUPLES_OK)
+            {
+                PQclear(result);
+
+                result = PQexec(
+                    conn,
+                    "SELECT id, name, price, quantity, image_url "
+                    "FROM public.products "
+                    "ORDER BY id"
+                );
+            }
 
             if (PQresultStatus(result) != PGRES_TUPLES_OK)
             {
@@ -129,6 +145,18 @@ int main()
 
                 product["image_url"] =
                     PQgetvalue(result, i, 4);
+
+                int columnCount = PQnfields(result);
+
+                product["description"] =
+                    columnCount > 5
+                        ? PQgetvalue(result, i, 5)
+                        : "";
+
+                product["category"] =
+                    columnCount > 6
+                        ? PQgetvalue(result, i, 6)
+                        : "General";
 
                 response["products"].append(product);
             }
@@ -853,12 +881,17 @@ int main()
             std::string totalString =
                 std::to_string(total);
 
+            // 'PENDING' satisfies both order-status schemes found
+            // in the repository: the plain schema (VARCHAR, no
+            // check) and the orders_status_check constraint added by
+            // migration 004 (PENDING/CONFIRMED/SHIPPED/DELIVERED/
+            // CANCELLED).
             std::string orderQuery =
                 "INSERT INTO public.orders "
                 "(user_id, total_amount, status, order_date) "
                 "VALUES ($1, " +
                 totalString +
-                ", 'PLACED', CURRENT_TIMESTAMP) "
+                ", 'PENDING', CURRENT_TIMESTAMP) "
                 "RETURNING id";
 
             PGresult* orderResult = PQexecParams(
