@@ -1,315 +1,167 @@
-# 🛒 BerciiMart
+🛍️ BerciiMart
 
-## Multi-Seller E-Commerce Marketplace
+One Marketplace. Multiple Sellers. Smarter Shopping.
 
-BerciiMart is a C++20-based console e-commerce application developed as a capstone project.
+A C++ and PostgreSQL-Powered Multi-Seller E-Commerce Marketplace
 
-The project uses PostgreSQL for persistent data storage and demonstrates user authentication, product management, shopping cart operations, checkout, order creation, and order history.
+🌐 Live Demo: https://berciimart.onrender.com/
+💻 Source Code: https://github.com/berciyadelin/Berciimart
+🎓 Project: Capstone Project — Final Review, October 10, 2026
 
----
 
-## 📌 Project Status
+🚀 About BerciiMart
 
-### Current Status: Review-2 Development
+BerciiMart is a multi-seller e-commerce marketplace designed to bring buyers, sellers, and administrators together in one organized digital shopping environment.
 
-The current working implementation is a console-based C++ application connected to PostgreSQL.
+Instead of managing products, inventory, shopping carts, and orders separately, BerciiMart connects these activities through a centralized marketplace backed by PostgreSQL and powered by C++ application logic.
 
-### Completed and Verified
+Its goal is to demonstrate how core software engineering concepts can be combined to build a practical, structured, and extensible e-commerce system.
 
-- PostgreSQL database connectivity
-- User registration
-- User login
-- Argon2id password hashing
-- Product listing
-- Shopping cart operations
-- Quantity validation
-- Stock validation
-- Checkout
-- Order creation
-- Order item storage
-- Stock reduction after checkout
-- Cart clearing after checkout
-- Order history
-- Logout
-- CMake build configuration
-- Ninja build system
-- vcpkg dependency management
-- Git and GitHub version control
+💡 The Problem We're Solving
 
----
+Online marketplace operations involve several connected activities:
 
-## ✨ Main Features
+- Managing product listings from multiple sellers
+- Keeping product availability and order information consistent
+- Organizing shopping carts and order totals
+- Providing secure access for different user roles
+- Helping buyers find information about products and orders
 
-### 👤 User Management
+BerciiMart brings these activities together in one system.
 
-- User registration
-- User login
-- User logout
-- Password hashing using Argon2id
-- Secure password storage
-- PostgreSQL-based user persistence
-- User roles such as BUYER, SELLER, and ADMIN
+✨ Key Features
 
-### 📦 Product Management
+🛒 1. Buyer Shopping Experience
 
-- View available products
-- Display product ID
-- Display product name
-- Display product price
-- Display available quantity
-- PostgreSQL-based product storage
+- Browse and search available products
+- Add products to a shopping cart
+- Manage item quantities and cart totals
+- Complete checkout using mock payment confirmation
+- Review previous orders
 
-### 🛒 Shopping Cart
+🏪 2. Multi-Seller Product Management
 
-- Add products to cart
-- View cart
-- Add quantities
-- Combine quantities for an existing product
-- Quantity validation
-- Stock availability checking
+- Organize product listings by seller
+- Support product creation, editing, and removal
+- Maintain product details, prices, and stock information
 
-### 🧾 Checkout and Orders
+🔐 3. Role-Based Access
 
-- Checkout cart
-- Calculate order total
-- Create order
-- Store order items
-- Update product stock
-- Clear cart after successful checkout
-- View previous orders
+- User registration and login
+- Separate buyer, seller, and administrator permissions
+- Protected operations for authorized users
 
----
+📦 4. Order and Inventory Management
 
-## 🏗️ Application Architecture
+- Record order details in the database
+- Calculate purchase totals
+- Track order history
+- Maintain inventory consistency during checkout
 
-The current application follows a simple console-based architecture:
+🤖 5. Smart Shopping Assistant
 
-                 C++ Console Application
-                          │
-                          ▼
-                    main.cpp
-                          │
-                          ▼
-                   database.cpp
-                          │
-                          ▼
-                    libpq / SQL
-                          │
-                          ▼
-                    PostgreSQL
-                          │
-             ┌────────────┼────────────┐
-             ▼            ▼            ▼
-           Users       Products       Cart
-                                      │
-                                      ▼
-                                   Orders
+The planned chatbot provides a conversational way for users to ask common marketplace questions, such as:
 
-The C++ application handles the user interface and application flow.
+- How do I add a product to my cart?
+- How does checkout work?
+- Where can I find my orders?
+- How can a seller manage products?
+- What should I do if a feature is unavailable?
 
-The database layer handles PostgreSQL connectivity, SQL queries, authentication, products, cart operations, checkout, and orders.
+The chatbot should remain focused on marketplace assistance and provide a fallback when its service is unavailable.
 
----
+🌟 What Makes BerciiMart Interesting?
 
-## 📁 Project Structure
+- Connected marketplace workflow: Links product browsing, cart management, checkout, and order history.
+- Multiple user roles: Separates buyer, seller, and administrator responsibilities.
+- Database-backed operations: Uses PostgreSQL to organize persistent marketplace data.
+- Conversational assistance: Includes a chatbot as an additional way to help users navigate the marketplace.
+- Expandable architecture: Provides a foundation for future features such as wishlists, richer order tracking, and seller analytics.
 
-Berciimart/
-│
-├── .github/
-│   └── workflows/
-│
-├── database/
-│   ├── schema.sql
-│   └── migrations/
-│
-├── docs/
-│
-├── include/
-│   ├── database.h
-│   └── user.h
-│
-├── src/
-│   ├── main.cpp
-│   ├── database.cpp
-│   ├── db_test.cpp
-│   └── *_backup.cpp
-│
-├── test/
-│
-├── CMakeLists.txt
-├── README.md
-├── vcpkg.json
-└── .gitignore
+These are design goals and differentiators; only features verified in the current deployment should be presented as completed.
 
----
+🏗️ Technology Stack
 
-## 🛠️ Technology Stack
+Technology| Purpose
+C++ / C++20| Application logic
+PostgreSQL| Persistent relational database
+SQL / libpq| Database queries and connectivity
+HTML, CSS, JavaScript| Browser interface, where used
+CMake| Build configuration
+Git and GitHub| Version control
+Render| Public deployment
 
-| Technology | Purpose |
-|------------|---------|
-| C++20 | Main programming language |
-| PostgreSQL | Relational database |
-| libpq | PostgreSQL client library |
-| Argon2 | Password hashing |
-| SQL | Database operations |
-| CMake | Build configuration |
-| Ninja | Build system |
-| vcpkg | C/C++ dependency management |
-| Git | Version control |
-| GitHub | Source-code hosting |
-| Visual Studio Code | Development environment |
+🔄 How the System Works
+
+1. A user opens the BerciiMart website.
+2. The user registers or logs in.
+3. The application provides access to permitted marketplace functions.
+4. Buyers browse products and manage their carts.
+5. At checkout, the application confirms the mock payment and records the order.
+6. The database stores the relevant marketplace information.
+7. Users can view their order history, while authorized sellers and administrators use their respective functions.
+
+🗄️ Database and Security
+
+PostgreSQL manages structured marketplace information, including users, products, carts, orders, and order items, according to the current schema.
+
+Security priorities include:
+
+- Password hashing instead of plaintext password storage
+- Parameterized database queries
+- Server-side role and permission checks
+- Input validation and safe error handling
+- Keeping database credentials and chatbot API keys out of public source code
+
+The actual implementation should be tested before these controls are claimed as fully verified.
+
+🧪 Final Review Testing
+
+The following checks should be completed before the demonstration:
+
+- [ ] Website loads and displays products.
+- [ ] Registration and login work.
+- [ ] Search and product browsing work.
+- [ ] Cart additions, quantity updates, and removals work.
+- [ ] Checkout creates an order correctly.
+- [ ] Order history shows the correct user's orders.
+- [ ] Inventory updates correctly after checkout.
+- [ ] Seller permissions and product management work.
+- [ ] Administrator functions are restricted to authorized users.
+- [ ] Reviews and ratings work for eligible completed orders.
+- [ ] Chatbot answers FAQs and handles service errors.
+- [ ] Database records persist as expected.
+- [ ] No secrets are exposed in the repository.
+
+🌐 Deployment
+
+Live Website: https://berciimart.onrender.com/
+
+BerciiMart is hosted on Render for public demonstration. The live site should be tested end to end before the final review, as public availability alone does not confirm that every feature works.
+
+🔮 Future Enhancements
+
+Potential future improvements include:
+
+- Wishlist and save-for-later functionality
+- More detailed order-status tracking
+- Seller sales analytics
+- Improved product filtering
+- Expanded chatbot FAQ coverage
+- Additional automated testing
+
+🎯 Project Outcome
+
+BerciiMart demonstrates the integration of C++ application logic, PostgreSQL database management, authentication, and e-commerce workflows in a multi-seller marketplace.
+
+The project aims to provide a practical foundation for understanding how a real-world online marketplace can be designed, implemented, tested, and deployed.
 
 ---
 
-## 🗄️ Database
+👩‍💻 Project Author
 
-BerciiMart uses PostgreSQL for persistent application data.
+Berciya Delin G
+B.Tech — Information Technology
+J. J. College of Engineering and Technology
 
-The application currently works with database entities including:
-
-- Users
-- Products
-- Categories
-- Cart
-- Orders
-- Order Items
-
-The database uses relational features such as:
-
-- Primary keys
-- Foreign keys
-- Unique constraints
-- Check constraints
-- Quantity validation
-
-The application connects to PostgreSQL using the libpq client library.
-
----
-
-## 🔐 Security
-
-BerciiMart uses Argon2id for password hashing.
-
-Passwords are not stored as plain text.
-
-### Password Flow
-
-User Password
-      │
-      ▼
-   Argon2id
-      │
-      ▼
-Password Hash
-      │
-      ▼
-   PostgreSQL
-
-The application also uses parameterized PostgreSQL queries for database operations.
-
----
-
-## 🔄 Application Workflow
-
-### 1. Start Application
-
-The program connects to the PostgreSQL database.
-
-### 2. Register
-
-The user enters:
-
-- Username
-- Email
-- Password
-- Role
-
-The password is hashed using Argon2id and the user information is stored in PostgreSQL.
-
-### 3. Login
-
-The user enters their username and password.
-
-The application verifies the password and allows access to the shopping menu after successful authentication.
-
-### 4. View Products
-
-The application retrieves available products from PostgreSQL and displays their details.
-
-### 5. Add to Cart
-
-The user selects a product ID and quantity.
-
-The application validates the requested quantity against available stock and stores the cart information in PostgreSQL.
-
-### 6. View Cart
-
-The application displays the products and quantities currently stored in the user's cart.
-
-### 7. Checkout
-
-The application:
-
-1. Reads the cart
-2. Calculates the total
-3. Creates an order
-4. Stores order items
-5. Updates product stock
-6. Clears the cart
-
-### 8. My Orders
-
-The user can view previously created orders, including:
-
-- Order ID
-- Total amount
-- Status
-- Order date
-
-### 9. Logout
-
-The user returns to the main application menu.
-
----
-
-## 🧪 Testing and Verification
-
-The current implementation has been tested for:
-
-- Database connection
-- User registration
-- User login
-- Product display
-- Add to cart
-- View cart
-- Checkout
-- Order creation
-- Order item creation
-- Product stock update
-- Cart clearing
-- Order history
-- Logout
-- CMake/Ninja build
-
-The application successfully builds using the configured CMake and Ninja environment.
-
----
-
-## 🔨 Build Instructions
-
-### Requirements
-
-- C++20 compatible compiler
-- CMake
-- Ninja
-- PostgreSQL
-- vcpkg
-- libpq
-- Argon2
-
-### Configure
-
-From the project directory:
-
-```text
-cmake -S . -B build -G Ninja
+Built as a capstone project to apply programming, database, and software development concepts to a practical marketplace problem.
