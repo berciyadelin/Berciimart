@@ -31,6 +31,14 @@
                 My Orders
             </button>
 
+            <button
+                id="sellerNavButton"
+                onclick="showSellerSection()"
+                hidden
+            >
+                Seller
+            </button>
+
             <button onclick="logout()">
                 Logout
             </button>
@@ -116,9 +124,15 @@
                     <input
                         type="password"
                         id="registerPassword"
-                        placeholder="Password"
+                        placeholder="Password (min 8 characters)"
+                        minlength="8"
                         required
                     >
+
+                    <select id="registerRole" aria-label="Account type">
+                        <option value="BUYER">Buyer account</option>
+                        <option value="SELLER">Seller account</option>
+                    </select>
 
                     <button type="submit">
                         Register
@@ -203,6 +217,104 @@
                 <button onclick="checkout()">
                     Checkout
                 </button>
+
+            </div>
+
+        </section>
+
+
+        <!-- SELLER DASHBOARD -->
+
+        <section id="sellerSection" class="section">
+
+            <h1>Seller Dashboard</h1>
+
+            <div class="seller-grid">
+
+                <div class="seller-panel">
+
+                    <h2 id="sellerFormTitle">Add Product</h2>
+
+                    <form id="sellerProductForm">
+
+                        <input
+                            type="text"
+                            id="sellerName"
+                            placeholder="Product name"
+                            required
+                        >
+
+                        <textarea
+                            id="sellerDescription"
+                            placeholder="Description"
+                            rows="3"
+                        ></textarea>
+
+                        <input
+                            type="number"
+                            id="sellerPrice"
+                            placeholder="Price"
+                            min="0"
+                            step="0.01"
+                            required
+                        >
+
+                        <input
+                            type="number"
+                            id="sellerStock"
+                            placeholder="Stock quantity"
+                            min="0"
+                            required
+                        >
+
+                        <input
+                            type="text"
+                            id="sellerCategory"
+                            placeholder="Category"
+                            value="General"
+                        >
+
+                        <input
+                            type="text"
+                            id="sellerImage"
+                            placeholder="Image URL (optional)"
+                        >
+
+                        <p id="sellerMessage" class="form-message"></p>
+
+                        <button type="submit" id="sellerSubmit">
+                            Add product
+                        </button>
+
+                        <button
+                            type="button"
+                            class="link-button"
+                            id="sellerCancelEdit"
+                            hidden
+                            onclick="resetSellerForm()"
+                        >
+                            Cancel edit
+                        </button>
+
+                    </form>
+
+                </div>
+
+                <div class="seller-panel">
+
+                    <h2>My Products</h2>
+
+                    <div id="sellerProductsContainer">
+                        <p>Loading products...</p>
+                    </div>
+
+                    <h2>Orders For My Products</h2>
+
+                    <div id="sellerOrdersContainer">
+                        <p>Loading orders...</p>
+                    </div>
+
+                </div>
 
             </div>
 

@@ -17,6 +17,16 @@ document.addEventListener("DOMContentLoaded", () => {
         registerForm.addEventListener("submit", handleRegister);
     }
 
+    const sellerProductForm =
+        document.getElementById("sellerProductForm");
+
+    if (sellerProductForm) {
+        sellerProductForm.addEventListener(
+            "submit",
+            saveSellerProduct
+        );
+    }
+
     const paymentForm = document.getElementById("paymentForm");
 
     if (paymentForm) {
@@ -75,6 +85,7 @@ function showSection(sectionName) {
         register: "registerSection",
         products: "productsSection",
         cart: "cartSection",
+        seller: "sellerSection",
         orders: "ordersSection"
     };
 
@@ -96,9 +107,37 @@ function showSection(sectionName) {
         loadCart();
     }
 
+    if (sectionName === "seller") {
+        loadSellerProducts();
+        loadSellerOrders();
+    }
+
     if (sectionName === "orders") {
         loadOrders();
     }
+
+    updateNavVisibility();
+}
+
+function updateNavVisibility() {
+    const sellerButton =
+        document.getElementById("sellerNavButton");
+
+    if (sellerButton) {
+        const role = currentUser ? currentUser.role : "";
+
+        sellerButton.hidden =
+            !(role === "SELLER" || role === "ADMIN");
+    }
+}
+
+function showSellerSection() {
+    if (!currentUser) {
+        showSection("login");
+        return;
+    }
+
+    showSection("seller");
 }
 
 async function handleRegister(event) {
@@ -974,6 +1013,436 @@ async function loadOrders() {
         console.error("Orders error:", error);
         container.innerHTML =
             "<p>Unable to load orders.</p>";
+    }
+}
+
+let sellerProducts = [];
+let editingProductId = null;
+
+const ORDER_TRANSITIONS = {
+    PENDING: ["CONFIRMED", "CANCELLED"],
+    CONFIRMED: ["SHIPPED", "CANCELLED"],
+    SHIPPED: ["DELIVERED"],
+    DELIVERED: [],
+    CANCELLED: []
+};
+
+async function loadSellerProducts() {
+    const container =
+        document.getElementById("sellerProductsContainer");
+
+    if (!container) {
+        return;
+    }
+
+    if (!currentUser) {
+        container.innerHTML =
+            "<p>Please log in to view your products.</p>";
+        return;
+    }
+
+    try {
+        const response = await fetch(
+            `${API_URL}/seller/products`,
+            { headers: authHeaders() }
+        );
+
+        const data = await response.json();
+
+        if (response.status === 401) {
+            handleAuthError();
+            return;
+        }
+
+        if (response.status === 403) {
+            container.innerHTML =
+                "<p>Seller access required. Register a " +
+                "seller account or contact an administrator.</p>";
+            return;
+        }
+
+        if (!response.ok || data.success === false) {
+            throw new Error(
+                data.error || "Failed to load your products."
+            );
+        }
+
+        sellerProducts =
+            Array.isArray(data.products) ? data.products : [];
+
+        if (sellerProducts.length === 0) {
+            container.innerHTML =
+                "<p>You have not listed any products yet.</p>";
+            return;
+        }
+
+        container.innerHTML = sellerProducts
+            .map(product => {
+                const id = Number(product.id) || 0;
+
+                return `
+                    <div class="seller-product">
+                        <strong>${escapeHtml(product.name || "Product")}</strong>
+                        <span>
+                            ₹${Number(product.price || 0).toFixed(2)}
+                            · stock ${Number(product.quantity || 0)}
+                            · ${escapeHtml(product.category || "General")}
+                        </span>
+                        <p>${escapeHtml(product.description || "")}</p>
+                        <div class="seller-product-actions">
+                            <button type="button"
+                                onclick="editSellerProduct(${id})">Edit</button>
+                            <button type="button" class="remove-btn"
+                                onclick="deleteSellerProduct(${id})">Delete</button>
+                        </div>
+                    </div>
+                `;
+            })
+            .join("");
+
+    } catch (error) {
+        console.error("Seller products error:", error);
+        container.innerHTML =
+            "<p>Unable to load your products.</p>";
+    }
+}
+
+async function saveSellerProduct(event) {
+    event.preventDefault();
+
+    const message =
+        document.getElementById("sellerMessage");
+
+    const name =
+        document.getElementById("sellerName")?.value.trim();
+    const description =
+        document.getElementById("sellerDescription")?.value.trim() || "";
+    const price =
+        Number(document.getElementById("sellerPrice")?.value);
+    const quantity =
+        Number(document.getElementById("sellerStock")?.value);
+    const category =
+        document.getElementById("sellerCategory")?.value.trim() || "General";
+    const imageUrl =
+        document.getElementById("sellerImage")?.value.trim() || "";
+
+    if (!name) {
+        if (message) {
+            message.textContent = "Product name is required.";
+        }
+        return;
+    }
+
+    if (!Number.isFinite(price) || price < 0) {
+        if (message) {
+            message.textContent = "Enter a valid price.";
+        }
+        return;
+    }
+
+    if (!Number.isInteger(quantity) || quantity < 0) {
+        if (message) {
+            message.textContent = "Enter a valid stock quantity.";
+        }
+        return;
+    }
+
+    const payload = {
+        name: name,
+        description: description,
+        price: price,
+        quantity: quantity,
+        category: category,
+        image_url: imageUrl
+    };
+
+    const isEdit = editingProductId !== null;
+
+    if (isEdit) {
+        payload.id = editingProductId;
+    }
+
+    try {
+        const response = await fetch(
+            `${API_URL}/seller/products`,
+            {
+                method: isEdit ? "PUT" : "POST",
+                headers: authHeaders({
+                    "Content-Type": "application/json"
+                }),
+                body: JSON.stringify(payload)
+            }
+        );
+
+        const data = await response.json();
+
+        if (response.status === 401) {
+            handleAuthError();
+            return;
+        }
+
+        if (!response.ok || data.success === false) {
+            if (message) {
+                message.textContent =
+                    data.error || "Saving the product failed.";
+            }
+            return;
+        }
+
+        resetSellerForm();
+        await loadSellerProducts();
+        await loadProducts();
+
+    } catch (error) {
+        console.error("Seller save error:", error);
+
+        if (message) {
+            message.textContent =
+                "Unable to connect to the server.";
+        }
+    }
+}
+
+function editSellerProduct(productId) {
+    const product = sellerProducts.find(
+        item => Number(item.id) === Number(productId)
+    );
+
+    if (!product) {
+        return;
+    }
+
+    editingProductId = Number(productId);
+
+    const setTitle =
+        document.getElementById("sellerFormTitle");
+    const submitButton =
+        document.getElementById("sellerSubmit");
+    const cancelButton =
+        document.getElementById("sellerCancelEdit");
+    const message =
+        document.getElementById("sellerMessage");
+
+    if (setTitle) setTitle.textContent = "Edit Product";
+    if (submitButton) submitButton.textContent = "Save changes";
+    if (cancelButton) cancelButton.hidden = false;
+    if (message) message.textContent = "";
+
+    const set = (id, value) => {
+        const element = document.getElementById(id);
+        if (element) element.value = value;
+    };
+
+    set("sellerName", product.name || "");
+    set("sellerDescription", product.description || "");
+    set("sellerPrice", product.price ?? "");
+    set("sellerStock", product.quantity ?? "");
+    set("sellerCategory", product.category || "General");
+    set("sellerImage", product.image_url || "");
+
+    const form = document.getElementById("sellerProductForm");
+    if (form) form.scrollIntoView({ behavior: "smooth" });
+}
+
+function resetSellerForm() {
+    const form =
+        document.getElementById("sellerProductForm");
+
+    if (form) {
+        form.reset();
+    }
+
+    editingProductId = null;
+
+    const setTitle =
+        document.getElementById("sellerFormTitle");
+    const submitButton =
+        document.getElementById("sellerSubmit");
+    const cancelButton =
+        document.getElementById("sellerCancelEdit");
+    const message =
+        document.getElementById("sellerMessage");
+
+    if (setTitle) setTitle.textContent = "Add Product";
+    if (submitButton) submitButton.textContent = "Add product";
+    if (cancelButton) cancelButton.hidden = true;
+    if (message) message.textContent = "";
+}
+
+async function deleteSellerProduct(productId) {
+    if (!confirm("Delete this product from your store?")) {
+        return;
+    }
+
+    try {
+        const response = await fetch(
+            `${API_URL}/seller/products?id=${encodeURIComponent(productId)}`,
+            {
+                method: "DELETE",
+                headers: authHeaders()
+            }
+        );
+
+        const data = await response.json();
+
+        if (response.status === 401) {
+            handleAuthError();
+            return;
+        }
+
+        if (!response.ok || data.success === false) {
+            alert(data.error || "Unable to delete product.");
+            return;
+        }
+
+        await loadSellerProducts();
+        await loadProducts();
+
+    } catch (error) {
+        console.error("Seller delete error:", error);
+        alert("Unable to connect to the server.");
+    }
+}
+
+async function loadSellerOrders() {
+    const container =
+        document.getElementById("sellerOrdersContainer");
+
+    if (!container) {
+        return;
+    }
+
+    if (!currentUser) {
+        container.innerHTML =
+            "<p>Please log in to view orders.</p>";
+        return;
+    }
+
+    try {
+        const response = await fetch(
+            `${API_URL}/seller/orders`,
+            { headers: authHeaders() }
+        );
+
+        const data = await response.json();
+
+        if (response.status === 401) {
+            handleAuthError();
+            return;
+        }
+
+        if (response.status === 403) {
+            container.innerHTML =
+                "<p>Seller access required.</p>";
+            return;
+        }
+
+        if (!response.ok || data.success === false) {
+            throw new Error(
+                data.error || "Failed to load orders."
+            );
+        }
+
+        const orders = Array.isArray(data.orders)
+            ? data.orders
+            : [];
+
+        if (orders.length === 0) {
+            container.innerHTML =
+                "<p>No orders contain your products yet.</p>";
+            return;
+        }
+
+        container.innerHTML = orders
+            .map(order => {
+                const id = Number(order.id) || 0;
+                const status =
+                    escapeHtml(order.status || "PENDING");
+                const allowed =
+                    ORDER_TRANSITIONS[order.status] || [];
+
+                const options = allowed
+                    .map(next =>
+                        `<option value="${next}">${next}</option>`
+                    )
+                    .join("");
+
+                const controls = allowed.length > 0
+                    ? `
+                        <div class="status-controls">
+                            <select id="statusFor${id}"
+                                aria-label="New status">
+                                ${options}
+                            </select>
+                            <button type="button"
+                                onclick="updateSellerOrderStatus(${id}, document.getElementById('statusFor${id}').value)">
+                                Update
+                            </button>
+                        </div>
+                    `
+                    : `<p class="status-final">No further updates</p>`;
+
+                return `
+                    <div class="order-card">
+                        <h3>Order #${id}</h3>
+                        <p>${escapeHtml(order.my_items || "")}</p>
+                        <p>
+                            Total: ₹${Number(order.total_amount || 0).toFixed(2)}
+                        </p>
+                        <p>Status: <strong>${status}</strong></p>
+                        <p class="order-date">
+                            ${escapeHtml(order.order_date || "")}
+                        </p>
+                        ${controls}
+                    </div>
+                `;
+            })
+            .join("");
+
+    } catch (error) {
+        console.error("Seller orders error:", error);
+        container.innerHTML =
+            "<p>Unable to load orders.</p>";
+    }
+}
+
+async function updateSellerOrderStatus(orderId, status) {
+    if (!status) {
+        return;
+    }
+
+    try {
+        const response = await fetch(
+            `${API_URL}/seller/orders`,
+            {
+                method: "PUT",
+                headers: authHeaders({
+                    "Content-Type": "application/json"
+                }),
+                body: JSON.stringify({
+                    order_id: orderId,
+                    status: status
+                })
+            }
+        );
+
+        const data = await response.json();
+
+        if (response.status === 401) {
+            handleAuthError();
+            return;
+        }
+
+        if (!response.ok || data.success === false) {
+            alert(data.error || "Unable to update the status.");
+            return;
+        }
+
+        await loadSellerOrders();
+
+    } catch (error) {
+        console.error("Order status error:", error);
+        alert("Unable to connect to the server.");
     }
 }
 

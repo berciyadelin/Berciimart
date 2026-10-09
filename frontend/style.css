@@ -369,3 +369,123 @@ footer {
         align-items: stretch;
     }
 }
+
+
+/* =====================================================
+   SELLER DASHBOARD
+   ===================================================== */
+
+.seller-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr;
+    gap: 24px;
+    align-items: start;
+    margin-top: 20px;
+}
+
+.seller-panel {
+    background: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.seller-panel h2 {
+    margin-top: 0;
+    font-size: 20px;
+}
+
+.seller-panel input,
+.seller-panel textarea,
+.seller-panel select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    margin-top: 10px;
+    border: 1px solid #d0d0d0;
+    border-radius: 6px;
+    font-size: 15px;
+    font-family: inherit;
+    resize: vertical;
+}
+
+.seller-panel button[type="submit"] {
+    margin-top: 14px;
+}
+
+.form-message {
+    color: #b3261e;
+    font-size: 14px;
+    min-height: 18px;
+    margin: 10px 0 0;
+}
+
+.seller-product {
+    border: 1px solid #e6e6e6;
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 12px;
+}
+
+.seller-product span {
+    display: block;
+    color: #555;
+    font-size: 14px;
+    margin-top: 4px;
+}
+
+.seller-product p {
+    margin: 8px 0 0;
+    color: #444;
+    font-size: 14px;
+}
+
+.seller-product-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.seller-product-actions .remove-btn {
+    background: #fdecea;
+    border: 1px solid #f5c6c0;
+    color: #b3261e;
+    border-radius: 6px;
+    padding: 6px 12px;
+    cursor: pointer;
+}
+
+.status-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-top: 10px;
+}
+
+.status-controls select {
+    padding: 8px 10px;
+    border: 1px solid #d0d0d0;
+    border-radius: 6px;
+    background: #fff;
+}
+
+.status-final {
+    color: #777;
+    font-size: 14px;
+    margin-top: 10px;
+}
+
+.order-date {
+    color: #777;
+    font-size: 13px;
+}
+
+#sellerNavButton[hidden] {
+    display: none;
+}
+
+@media (max-width: 820px) {
+    .seller-grid {
+        grid-template-columns: 1fr;
+    }
+}
