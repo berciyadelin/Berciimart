@@ -39,6 +39,14 @@
                 Seller
             </button>
 
+            <button
+                id="adminNavButton"
+                onclick="showAdminSection()"
+                hidden
+            >
+                Admin
+            </button>
+
             <button onclick="logout()">
                 Logout
             </button>
@@ -316,6 +324,55 @@
 
                 </div>
 
+            </div>
+
+        </section>
+
+
+        <!-- ADMIN DASHBOARD -->
+
+        <section id="adminSection" class="section">
+
+            <h1>Admin Dashboard</h1>
+
+            <div id="adminStats" class="admin-stats">
+                <div class="stat-card">
+                    <span id="statUsers">–</span>
+                    <p>Users</p>
+                </div>
+                <div class="stat-card">
+                    <span id="statProducts">–</span>
+                    <p>Products</p>
+                </div>
+                <div class="stat-card">
+                    <span id="statOrders">–</span>
+                    <p>Orders</p>
+                </div>
+                <div class="stat-card">
+                    <span id="statRevenue">–</span>
+                    <p>Revenue</p>
+                </div>
+            </div>
+
+            <div class="admin-panel">
+                <h2>Users</h2>
+                <div id="adminUsersContainer">
+                    <p>Loading users...</p>
+                </div>
+            </div>
+
+            <div class="admin-panel">
+                <h2>Orders</h2>
+                <div id="adminOrdersContainer">
+                    <p>Loading orders...</p>
+                </div>
+            </div>
+
+            <div class="admin-panel">
+                <h2>Product Moderation</h2>
+                <div id="adminProductsContainer">
+                    <p>Loading listings...</p>
+                </div>
             </div>
 
         </section>

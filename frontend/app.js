@@ -86,6 +86,7 @@ function showSection(sectionName) {
         products: "productsSection",
         cart: "cartSection",
         seller: "sellerSection",
+        admin: "adminSection",
         orders: "ordersSection"
     };
 
@@ -112,6 +113,10 @@ function showSection(sectionName) {
         loadSellerOrders();
     }
 
+    if (sectionName === "admin") {
+        loadAdminData();
+    }
+
     if (sectionName === "orders") {
         loadOrders();
     }
@@ -120,14 +125,21 @@ function showSection(sectionName) {
 }
 
 function updateNavVisibility() {
+    const role = currentUser ? currentUser.role : "";
+
     const sellerButton =
         document.getElementById("sellerNavButton");
 
     if (sellerButton) {
-        const role = currentUser ? currentUser.role : "";
-
         sellerButton.hidden =
             !(role === "SELLER" || role === "ADMIN");
+    }
+
+    const adminButton =
+        document.getElementById("adminNavButton");
+
+    if (adminButton) {
+        adminButton.hidden = role !== "ADMIN";
     }
 }
 
@@ -138,6 +150,15 @@ function showSellerSection() {
     }
 
     showSection("seller");
+}
+
+function showAdminSection() {
+    if (!currentUser) {
+        showSection("login");
+        return;
+    }
+
+    showSection("admin");
 }
 
 async function handleRegister(event) {
@@ -1442,6 +1463,245 @@ async function updateSellerOrderStatus(orderId, status) {
 
     } catch (error) {
         console.error("Order status error:", error);
+        alert("Unable to connect to the server.");
+    }
+}
+
+async function loadAdminData() {
+    await Promise.all([
+        loadAdminStats(),
+        loadAdminUsers(),
+        loadAdminOrders(),
+        loadAdminProducts()
+    ]);
+}
+
+async function adminFetch(path) {
+    const response = await fetch(`${API_URL}${path}`, {
+        headers: authHeaders()
+    });
+
+    const data = await response.json();
+
+    if (response.status === 401) {
+        handleAuthError();
+        throw new Error("Login required");
+    }
+
+    if (response.status === 403) {
+        throw new Error(
+            "Administrator access required."
+        );
+    }
+
+    if (!response.ok || data.success === false) {
+        throw new Error(data.error || "Request failed.");
+    }
+
+    return data;
+}
+
+async function loadAdminStats() {
+    try {
+        const data = await adminFetch("/admin/stats");
+
+        const set = (id, value) => {
+            const element = document.getElementById(id);
+            if (element) element.textContent = value;
+        };
+
+        set("statUsers", Number(data.users || 0));
+        set("statProducts", Number(data.products || 0));
+        set("statOrders", Number(data.orders || 0));
+        set(
+            "statRevenue",
+            "₹" + Number(data.revenue || 0).toFixed(2)
+        );
+
+    } catch (error) {
+        console.error("Admin stats error:", error);
+    }
+}
+
+async function loadAdminUsers() {
+    const container =
+        document.getElementById("adminUsersContainer");
+
+    if (!container) {
+        return;
+    }
+
+    try {
+        const data = await adminFetch("/admin/users");
+        const users = Array.isArray(data.users)
+            ? data.users
+            : [];
+
+        if (users.length === 0) {
+            container.innerHTML = "<p>No users found.</p>";
+            return;
+        }
+
+        container.innerHTML = `
+            <div class="table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Joined</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${users.map(user => `
+                            <tr>
+                                <td>${Number(user.id) || 0}</td>
+                                <td>${escapeHtml(user.name || "")}</td>
+                                <td>${escapeHtml(user.email || "")}</td>
+                                <td><span class="role-badge role-${escapeHtml(String(user.role || "").toLowerCase())}">${escapeHtml(user.role || "")}</span></td>
+                                <td>${escapeHtml(String(user.created_at || "").slice(0, 10))}</td>
+                            </tr>
+                        `).join("")}
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+    } catch (error) {
+        console.error("Admin users error:", error);
+        container.innerHTML =
+            `<p>${escapeHtml(error.message)}</p>`;
+    }
+}
+
+async function loadAdminOrders() {
+    const container =
+        document.getElementById("adminOrdersContainer");
+
+    if (!container) {
+        return;
+    }
+
+    try {
+        const data = await adminFetch("/admin/orders");
+        const orders = Array.isArray(data.orders)
+            ? data.orders
+            : [];
+
+        if (orders.length === 0) {
+            container.innerHTML = "<p>No orders yet.</p>";
+            return;
+        }
+
+        container.innerHTML = orders
+            .map(order => `
+                <div class="order-card">
+                    <h3>Order #${Number(order.id) || 0}</h3>
+                    <p>
+                        ${escapeHtml(order.buyer_name || "")}
+                        (${escapeHtml(order.buyer_email || "")})
+                    </p>
+                    <p>${escapeHtml(order.items || "")}</p>
+                    <p>
+                        Total: ₹${Number(order.total_amount || 0).toFixed(2)}
+                    </p>
+                    <p>Status:
+                        <strong>${escapeHtml(order.status || "PENDING")}</strong>
+                    </p>
+                    <p class="order-date">
+                        ${escapeHtml(order.order_date || "")}
+                    </p>
+                </div>
+            `)
+            .join("");
+
+    } catch (error) {
+        console.error("Admin orders error:", error);
+        container.innerHTML =
+            `<p>${escapeHtml(error.message)}</p>`;
+    }
+}
+
+async function loadAdminProducts() {
+    const container =
+        document.getElementById("adminProductsContainer");
+
+    if (!container) {
+        return;
+    }
+
+    try {
+        const data = await adminFetch("/admin/products");
+        const products = Array.isArray(data.products)
+            ? data.products
+            : [];
+
+        if (products.length === 0) {
+            container.innerHTML =
+                "<p>No listings found.</p>";
+            return;
+        }
+
+        container.innerHTML = products
+            .map(product => `
+                <div class="seller-product">
+                    <strong>${escapeHtml(product.name || "Product")}</strong>
+                    <span>
+                        ₹${Number(product.price || 0).toFixed(2)}
+                        · stock ${Number(product.quantity || 0)}
+                        · ${escapeHtml(product.category || "General")}
+                        · seller: ${escapeHtml(product.seller || "Unassigned")}
+                    </span>
+                    <div class="seller-product-actions">
+                        <button type="button" class="remove-btn"
+                            onclick="removeAdminProduct(${Number(product.id) || 0})">
+                            Remove listing
+                        </button>
+                    </div>
+                </div>
+            `)
+            .join("");
+
+    } catch (error) {
+        console.error("Admin products error:", error);
+        container.innerHTML =
+            `<p>${escapeHtml(error.message)}</p>`;
+    }
+}
+
+async function removeAdminProduct(productId) {
+    if (!confirm("Remove this listing from the marketplace?")) {
+        return;
+    }
+
+    try {
+        const response = await fetch(
+            `${API_URL}/admin/products?id=${encodeURIComponent(productId)}`,
+            {
+                method: "DELETE",
+                headers: authHeaders()
+            }
+        );
+
+        const data = await response.json();
+
+        if (response.status === 401) {
+            handleAuthError();
+            return;
+        }
+
+        if (!response.ok || data.success === false) {
+            alert(data.error || "Unable to remove listing.");
+            return;
+        }
+
+        await loadAdminProducts();
+        await loadProducts();
+
+    } catch (error) {
+        console.error("Admin remove error:", error);
         alert("Unable to connect to the server.");
     }
 }

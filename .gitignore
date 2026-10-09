@@ -29,3 +29,7 @@ vcpkg_installed/
 /src/repository/vc140.pdb
 /src/vc140.pdbs
 src/vc140.pdb
+# Local environment files (never commit secrets)
+.env
+.env.*
+!.env.example

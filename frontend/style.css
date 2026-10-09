@@ -489,3 +489,106 @@ footer {
         grid-template-columns: 1fr;
     }
 }
+
+/* =====================================================
+   ADMIN DASHBOARD
+   ===================================================== */
+
+.admin-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-top: 20px;
+}
+
+.stat-card {
+    background: #fff;
+    padding: 18px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    text-align: center;
+}
+
+.stat-card span {
+    display: block;
+    font-size: 26px;
+    font-weight: bold;
+    color: #222;
+}
+
+.stat-card p {
+    margin-top: 6px;
+    color: #666;
+    font-size: 14px;
+}
+
+.admin-panel {
+    background: #fff;
+    padding: 20px;
+    margin-top: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.admin-panel h2 {
+    margin-top: 0;
+    font-size: 20px;
+}
+
+.table-wrap {
+    overflow-x: auto;
+}
+
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.admin-table th,
+.admin-table td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid #ececec;
+}
+
+.admin-table th {
+    color: #555;
+    font-weight: 600;
+    background: #fafafa;
+}
+
+.role-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    background: #ececec;
+    color: #444;
+}
+
+.role-badge.role-admin {
+    background: #e8e0fd;
+    color: #5b34c4;
+}
+
+.role-badge.role-seller {
+    background: #e0f0fd;
+    color: #1a6aa8;
+}
+
+.role-badge.role-buyer {
+    background: #e5f6e9;
+    color: #217a37;
+}
+
+#adminNavButton[hidden] {
+    display: none;
+}
+
+@media (max-width: 820px) {
+    .admin-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
