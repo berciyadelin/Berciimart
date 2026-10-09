@@ -2,7 +2,9 @@
 #include "../include/database.h"
 #include <argon2.h>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
+#include <random>
 #include <string>
 
 using namespace drogon;
@@ -241,7 +243,33 @@ int main()
             PQclear(checkResult);
 
             // Password hash
-            char hash[256];
+            // Argon2id requires a random salt of at least
+            // 8 bytes. A NULL salt made every registration
+            // fail with ARGON2_SALT_TOO_SHORT (-6).
+            const uint32_t saltLength = 16;
+            const uint32_t hashLength = 32;
+
+            unsigned char salt[saltLength];
+
+            std::random_device randomSource;
+
+            for (uint32_t i = 0; i < saltLength; i++)
+            {
+                salt[i] = static_cast<unsigned char>(
+                    randomSource() & 0xFF
+                );
+            }
+
+            size_t encodedLength = argon2_encodedlen(
+                3,
+                65536,
+                1,
+                saltLength,
+                hashLength,
+                Argon2_id
+            );
+
+            std::string hash(encodedLength, '\0');
 
             int hashResult = argon2id_hash_encoded(
                 3,
@@ -249,11 +277,11 @@ int main()
                 1,
                 password.c_str(),
                 password.length(),
-                nullptr,
-                0,
-                32,
-                hash,
-                sizeof(hash)
+                salt,
+                saltLength,
+                hashLength,
+                hash.data(),
+                hash.size()
             );
 
             if (hashResult != ARGON2_OK)
@@ -266,11 +294,17 @@ int main()
                 return;
             }
 
+            // Drop the trailing null characters used by
+            // the encoded buffer.
+            hash.resize(
+                std::strlen(hash.c_str())
+            );
+
             const char* params[4];
 
             params[0] = username.c_str();
             params[1] = email.c_str();
-            params[2] = hash;
+            params[2] = hash.c_str();
             params[3] = role.c_str();
 
             PGresult* result = PQexecParams(
