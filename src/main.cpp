@@ -1,6 +1,7 @@
 #include <drogon/drogon.h>
 #include "../include/database.h"
 #include <argon2.h>
+#include <cctype>
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
@@ -161,6 +162,73 @@ std::string getUserRole(int userId)
 bool isSellerRole(const std::string& role)
 {
     return role == "SELLER" || role == "ADMIN";
+}
+
+bool isAdminRole(const std::string& role)
+{
+    return role == "ADMIN";
+}
+
+// Secure administrative assignment: only addresses listed in the
+// server-side ADMIN_EMAILS environment variable are promoted to ADMIN
+// (at login time). There is no public registration path to ADMIN.
+bool isAdminEmail(const std::string& email)
+{
+    const char* env = std::getenv("ADMIN_EMAILS");
+
+    if (env == nullptr)
+        return false;
+
+    std::string emailLower;
+
+    for (char c : email)
+    {
+        emailLower.push_back(
+            static_cast<char>(
+                std::tolower(static_cast<unsigned char>(c))
+            )
+        );
+    }
+
+    std::string entry;
+    std::string list(env);
+
+    auto matches = [&]() -> bool
+    {
+        if (entry.empty())
+            return false;
+
+        std::string entryLower;
+
+        for (char c : entry)
+        {
+            entryLower.push_back(
+                static_cast<char>(
+                    std::tolower(static_cast<unsigned char>(c))
+                )
+            );
+        }
+
+        return entryLower == emailLower;
+    };
+
+    for (char c : list)
+    {
+        if (c == ',' || c == ';' || c == ' ' ||
+            c == '\t' || c == '\n' || c == '\r')
+        {
+            if (matches())
+                return true;
+
+            entry.clear();
+        }
+        else
+        {
+            entry.push_back(c);
+        }
+    }
+
+    return matches();
 }
 
 HttpResponsePtr jsonError(
@@ -637,6 +705,38 @@ int main()
                 ));
 
                 return;
+            }
+
+            // Promote listed addresses to ADMIN server-side.
+            if (role != "ADMIN" && isAdminEmail(email))
+            {
+                std::string idString =
+                    std::to_string(userId);
+
+                const char* promoteParams[1];
+
+                promoteParams[0] = idString.c_str();
+
+                PGresult* promoteResult = PQexecParams(
+                    conn,
+                    "UPDATE public.users "
+                    "SET role = 'ADMIN' "
+                    "WHERE id = $1 AND role <> 'ADMIN'",
+                    1,
+                    nullptr,
+                    promoteParams,
+                    nullptr,
+                    nullptr,
+                    0
+                );
+
+                if (PQresultStatus(promoteResult) ==
+                    PGRES_COMMAND_OK)
+                {
+                    role = "ADMIN";
+                }
+
+                PQclear(promoteResult);
             }
 
             std::string sessionToken =
@@ -2585,6 +2685,505 @@ int main()
             );
         },
         {Put}
+    );
+
+    // =================================================
+    // ADMIN: USERS
+    // =================================================
+
+    app().registerHandler(
+        "/api/admin/users",
+        [](const HttpRequestPtr& req,
+           std::function<void(const HttpResponsePtr&)>&& callback)
+        {
+            int userId = getUserId(req);
+
+            if (!isValidUserId(userId))
+            {
+                callback(jsonError(
+                    "Login required",
+                    k401Unauthorized
+                ));
+
+                return;
+            }
+
+            if (!isAdminRole(getUserRole(userId)))
+            {
+                callback(jsonError(
+                    "Administrator access required",
+                    k403Forbidden
+                ));
+
+                return;
+            }
+
+            PGresult* result = PQexec(
+                conn,
+                "SELECT id, name, email, role, created_at "
+                "FROM public.users "
+                "ORDER BY id"
+            );
+
+            if (PQresultStatus(result) != PGRES_TUPLES_OK)
+            {
+                std::string error = PQerrorMessage(conn);
+
+                PQclear(result);
+
+                callback(jsonError(
+                    "Failed to load users: " + error,
+                    k500InternalServerError
+                ));
+
+                return;
+            }
+
+            Json::Value response;
+
+            response["success"] = true;
+            response["users"] =
+                Json::Value(Json::arrayValue);
+
+            int rows = PQntuples(result);
+
+            for (int i = 0; i < rows; i++)
+            {
+                Json::Value user;
+
+                user["id"] =
+                    std::stoi(PQgetvalue(result, i, 0));
+
+                user["name"] =
+                    PQgetvalue(result, i, 1);
+
+                user["email"] =
+                    PQgetvalue(result, i, 2);
+
+                user["role"] =
+                    PQgetvalue(result, i, 3);
+
+                user["created_at"] =
+                    PQgetvalue(result, i, 4);
+
+                response["users"].append(user);
+            }
+
+            PQclear(result);
+
+            callback(
+                HttpResponse::newHttpJsonResponse(response)
+            );
+        },
+        {Get}
+    );
+
+    // =================================================
+    // ADMIN: ALL ORDERS
+    // =================================================
+
+    app().registerHandler(
+        "/api/admin/orders",
+        [](const HttpRequestPtr& req,
+           std::function<void(const HttpResponsePtr&)>&& callback)
+        {
+            int userId = getUserId(req);
+
+            if (!isValidUserId(userId))
+            {
+                callback(jsonError(
+                    "Login required",
+                    k401Unauthorized
+                ));
+
+                return;
+            }
+
+            if (!isAdminRole(getUserRole(userId)))
+            {
+                callback(jsonError(
+                    "Administrator access required",
+                    k403Forbidden
+                ));
+
+                return;
+            }
+
+            PGresult* result = PQexec(
+                conn,
+                "SELECT o.id, o.status, o.total_amount, "
+                "o.order_date, u.name, u.email, "
+                "STRING_AGG(p.name || ' x' || oi.quantity, "
+                "', ' ORDER BY p.name) "
+                "FROM public.orders o "
+                "JOIN public.users u ON u.id = o.user_id "
+                "JOIN public.order_items oi "
+                "  ON oi.order_id = o.id "
+                "JOIN public.products p "
+                "  ON p.id = oi.product_id "
+                "GROUP BY o.id, o.status, o.total_amount, "
+                "o.order_date, u.name, u.email "
+                "ORDER BY o.id DESC"
+            );
+
+            if (PQresultStatus(result) != PGRES_TUPLES_OK)
+            {
+                std::string error = PQerrorMessage(conn);
+
+                PQclear(result);
+
+                callback(jsonError(
+                    "Failed to load orders: " + error,
+                    k500InternalServerError
+                ));
+
+                return;
+            }
+
+            Json::Value response;
+
+            response["success"] = true;
+            response["orders"] =
+                Json::Value(Json::arrayValue);
+
+            int rows = PQntuples(result);
+
+            for (int i = 0; i < rows; i++)
+            {
+                Json::Value order;
+
+                order["id"] =
+                    std::stoi(PQgetvalue(result, i, 0));
+
+                order["status"] =
+                    PQgetvalue(result, i, 1);
+
+                order["total_amount"] =
+                    std::stod(PQgetvalue(result, i, 2));
+
+                order["order_date"] =
+                    PQgetvalue(result, i, 3);
+
+                order["buyer_name"] =
+                    PQgetvalue(result, i, 4);
+
+                order["buyer_email"] =
+                    PQgetvalue(result, i, 5);
+
+                order["items"] =
+                    PQgetvalue(result, i, 6);
+
+                response["orders"].append(order);
+            }
+
+            PQclear(result);
+
+            callback(
+                HttpResponse::newHttpJsonResponse(response)
+            );
+        },
+        {Get}
+    );
+
+    // =================================================
+    // ADMIN: MARKETPLACE STATS
+    // =================================================
+
+    app().registerHandler(
+        "/api/admin/stats",
+        [](const HttpRequestPtr& req,
+           std::function<void(const HttpResponsePtr&)>&& callback)
+        {
+            int userId = getUserId(req);
+
+            if (!isValidUserId(userId))
+            {
+                callback(jsonError(
+                    "Login required",
+                    k401Unauthorized
+                ));
+
+                return;
+            }
+
+            if (!isAdminRole(getUserRole(userId)))
+            {
+                callback(jsonError(
+                    "Administrator access required",
+                    k403Forbidden
+                ));
+
+                return;
+            }
+
+            PGresult* result = PQexec(
+                conn,
+                "SELECT "
+                "(SELECT count(*) FROM public.users), "
+                "(SELECT count(*) FROM public.products), "
+                "(SELECT count(*) FROM public.orders), "
+                "COALESCE((SELECT sum(total_amount) "
+                "          FROM public.orders), 0)"
+            );
+
+            if (PQresultStatus(result) != PGRES_TUPLES_OK)
+            {
+                std::string error = PQerrorMessage(conn);
+
+                PQclear(result);
+
+                callback(jsonError(
+                    "Failed to load stats: " + error,
+                    k500InternalServerError
+                ));
+
+                return;
+            }
+
+            Json::Value response;
+
+            response["success"] = true;
+            response["users"] =
+                std::stoi(PQgetvalue(result, 0, 0));
+
+            response["products"] =
+                std::stoi(PQgetvalue(result, 0, 1));
+
+            response["orders"] =
+                std::stoi(PQgetvalue(result, 0, 2));
+
+            response["revenue"] =
+                std::stod(PQgetvalue(result, 0, 3));
+
+            PQclear(result);
+
+            callback(
+                HttpResponse::newHttpJsonResponse(response)
+            );
+        },
+        {Get}
+    );
+
+    // =================================================
+    // ADMIN: PRODUCT MODERATION LIST
+    // =================================================
+
+    app().registerHandler(
+        "/api/admin/products",
+        [](const HttpRequestPtr& req,
+           std::function<void(const HttpResponsePtr&)>&& callback)
+        {
+            int userId = getUserId(req);
+
+            if (!isValidUserId(userId))
+            {
+                callback(jsonError(
+                    "Login required",
+                    k401Unauthorized
+                ));
+
+                return;
+            }
+
+            if (!isAdminRole(getUserRole(userId)))
+            {
+                callback(jsonError(
+                    "Administrator access required",
+                    k403Forbidden
+                ));
+
+                return;
+            }
+
+            PGresult* result = PQexec(
+                conn,
+                "SELECT p.id, p.name, p.price, "
+                "p.quantity, p.category, "
+                "COALESCE(u.name, 'Unassigned') "
+                "FROM public.products p "
+                "LEFT JOIN public.users u "
+                "  ON u.id = p.seller_id "
+                "ORDER BY p.id"
+            );
+
+            if (PQresultStatus(result) != PGRES_TUPLES_OK)
+            {
+                std::string error = PQerrorMessage(conn);
+
+                PQclear(result);
+
+                callback(jsonError(
+                    "Failed to load products: " + error,
+                    k500InternalServerError
+                ));
+
+                return;
+            }
+
+            Json::Value response;
+
+            response["success"] = true;
+            response["products"] =
+                Json::Value(Json::arrayValue);
+
+            int rows = PQntuples(result);
+
+            for (int i = 0; i < rows; i++)
+            {
+                Json::Value product;
+
+                product["id"] =
+                    std::stoi(PQgetvalue(result, i, 0));
+
+                product["name"] =
+                    PQgetvalue(result, i, 1);
+
+                product["price"] =
+                    std::stod(PQgetvalue(result, i, 2));
+
+                product["quantity"] =
+                    std::stoi(PQgetvalue(result, i, 3));
+
+                product["category"] =
+                    PQgetvalue(result, i, 4);
+
+                product["seller"] =
+                    PQgetvalue(result, i, 5);
+
+                response["products"].append(product);
+            }
+
+            PQclear(result);
+
+            callback(
+                HttpResponse::newHttpJsonResponse(response)
+            );
+        },
+        {Get}
+    );
+
+    // =================================================
+    // ADMIN: REMOVE A LISTING (moderation)
+    // =================================================
+
+    app().registerHandler(
+        "/api/admin/products",
+        [](const HttpRequestPtr& req,
+           std::function<void(const HttpResponsePtr&)>&& callback)
+        {
+            int userId = getUserId(req);
+
+            if (!isValidUserId(userId))
+            {
+                callback(jsonError(
+                    "Login required",
+                    k401Unauthorized
+                ));
+
+                return;
+            }
+
+            if (!isAdminRole(getUserRole(userId)))
+            {
+                callback(jsonError(
+                    "Administrator access required",
+                    k403Forbidden
+                ));
+
+                return;
+            }
+
+            std::string productIdParameter =
+                req->getParameter("id");
+
+            int productId = 0;
+
+            try
+            {
+                productId =
+                    std::stoi(productIdParameter);
+            }
+            catch (...)
+            {
+                productId = 0;
+            }
+
+            if (productId <= 0)
+            {
+                callback(jsonError("Invalid product ID"));
+                return;
+            }
+
+            std::string productIdString =
+                std::to_string(productId);
+
+            const char* params[1];
+
+            params[0] = productIdString.c_str();
+
+            PGresult* result = PQexecParams(
+                conn,
+                "DELETE FROM public.products "
+                "WHERE id = $1 "
+                "RETURNING id",
+                1,
+                nullptr,
+                params,
+                nullptr,
+                nullptr,
+                0
+            );
+
+            if (PQresultStatus(result) != PGRES_TUPLES_OK)
+            {
+                std::string error = PQerrorMessage(conn);
+
+                PQclear(result);
+
+                if (error.find("foreign key") !=
+                    std::string::npos)
+                {
+                    callback(jsonError(
+                        "This product has orders and cannot "
+                        "be deleted",
+                        k400BadRequest
+                    ));
+
+                    return;
+                }
+
+                callback(jsonError(
+                    "Failed to delete product: " + error,
+                    k500InternalServerError
+                ));
+
+                return;
+            }
+
+            if (PQntuples(result) == 0)
+            {
+                PQclear(result);
+
+                callback(jsonError(
+                    "Product not found",
+                    k404NotFound
+                ));
+
+                return;
+            }
+
+            PQclear(result);
+
+            Json::Value response;
+
+            response["success"] = true;
+            response["message"] = "Listing removed";
+
+            callback(
+                HttpResponse::newHttpJsonResponse(response)
+            );
+        },
+        {Delete}
     );
 
     // =================================================
