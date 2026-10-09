@@ -5,10 +5,12 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <map>
 #include <mutex>
 #include <random>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 using namespace drogon;
 
@@ -121,6 +123,44 @@ int getUserId(const HttpRequestPtr& req)
     return sessionUserId(
         req->getHeader("X-Session-Token")
     );
+}
+
+std::string getUserRole(int userId)
+{
+    // Invalid ids simply produce no rows (empty role).
+    std::string userString = std::to_string(userId);
+
+    const char* params[1];
+
+    params[0] = userString.c_str();
+
+    PGresult* result = PQexecParams(
+        conn,
+        "SELECT role FROM public.users WHERE id = $1",
+        1,
+        nullptr,
+        params,
+        nullptr,
+        nullptr,
+        0
+    );
+
+    std::string role;
+
+    if (PQresultStatus(result) == PGRES_TUPLES_OK &&
+        PQntuples(result) > 0)
+    {
+        role = PQgetvalue(result, 0, 0);
+    }
+
+    PQclear(result);
+
+    return role;
+}
+
+bool isSellerRole(const std::string& role)
+{
+    return role == "SELLER" || role == "ADMIN";
 }
 
 HttpResponsePtr jsonError(
@@ -1662,6 +1702,889 @@ int main()
             );
         },
         {Get}
+    );
+
+    // =================================================
+    // SELLER: MY PRODUCTS (list)
+    // =================================================
+
+    app().registerHandler(
+        "/api/seller/products",
+        [](const HttpRequestPtr& req,
+           std::function<void(const HttpResponsePtr&)>&& callback)
+        {
+            int userId = getUserId(req);
+
+            if (!isValidUserId(userId))
+            {
+                callback(jsonError(
+                    "Login required",
+                    k401Unauthorized
+                ));
+
+                return;
+            }
+
+            if (!isSellerRole(getUserRole(userId)))
+            {
+                callback(jsonError(
+                    "Seller access required",
+                    k403Forbidden
+                ));
+
+                return;
+            }
+
+            std::string userString =
+                std::to_string(userId);
+
+            const char* params[1];
+
+            params[0] = userString.c_str();
+
+            PGresult* result = PQexecParams(
+                conn,
+                "SELECT id, name, price, quantity, "
+                "description, category, image_url "
+                "FROM public.products "
+                "WHERE seller_id = $1 "
+                "ORDER BY id",
+                1,
+                nullptr,
+                params,
+                nullptr,
+                nullptr,
+                0
+            );
+
+            if (PQresultStatus(result) != PGRES_TUPLES_OK)
+            {
+                std::string error = PQerrorMessage(conn);
+
+                PQclear(result);
+
+                callback(jsonError(
+                    "Failed to load your products: " + error,
+                    k500InternalServerError
+                ));
+
+                return;
+            }
+
+            Json::Value response;
+
+            response["success"] = true;
+            response["products"] =
+                Json::Value(Json::arrayValue);
+
+            int rows = PQntuples(result);
+
+            for (int i = 0; i < rows; i++)
+            {
+                Json::Value product;
+
+                product["id"] =
+                    std::stoi(PQgetvalue(result, i, 0));
+
+                product["name"] =
+                    PQgetvalue(result, i, 1);
+
+                product["price"] =
+                    std::stod(PQgetvalue(result, i, 2));
+
+                product["quantity"] =
+                    std::stoi(PQgetvalue(result, i, 3));
+
+                product["description"] =
+                    PQgetvalue(result, i, 4);
+
+                product["category"] =
+                    PQgetvalue(result, i, 5);
+
+                product["image_url"] =
+                    PQgetvalue(result, i, 6);
+
+                response["products"].append(product);
+            }
+
+            PQclear(result);
+
+            callback(
+                HttpResponse::newHttpJsonResponse(response)
+            );
+        },
+        {Get}
+    );
+
+    // =================================================
+    // SELLER: CREATE PRODUCT
+    // =================================================
+
+    app().registerHandler(
+        "/api/seller/products",
+        [](const HttpRequestPtr& req,
+           std::function<void(const HttpResponsePtr&)>&& callback)
+        {
+            int userId = getUserId(req);
+
+            if (!isValidUserId(userId))
+            {
+                callback(jsonError(
+                    "Login required",
+                    k401Unauthorized
+                ));
+
+                return;
+            }
+
+            if (!isSellerRole(getUserRole(userId)))
+            {
+                callback(jsonError(
+                    "Seller access required",
+                    k403Forbidden
+                ));
+
+                return;
+            }
+
+            auto json = req->getJsonObject();
+
+            if (!json)
+            {
+                callback(jsonError("Invalid JSON"));
+                return;
+            }
+
+            std::string name =
+                (*json).get("name", "").asString();
+
+            std::string description =
+                (*json).get("description", "").asString();
+
+            std::string category =
+                (*json).get("category", "General").asString();
+
+            std::string imageUrl =
+                (*json).get("image_url", "").asString();
+
+            double price =
+                (*json).get("price", -1).asDouble();
+
+            int quantity =
+                (*json).get("quantity", -1).asInt();
+
+            if (name.empty())
+            {
+                callback(jsonError("Product name is required"));
+                return;
+            }
+
+            if (price < 0)
+            {
+                callback(jsonError(
+                    "Price must be zero or more"
+                ));
+
+                return;
+            }
+
+            if (quantity < 0)
+            {
+                callback(jsonError(
+                    "Quantity must be zero or more"
+                ));
+
+                return;
+            }
+
+            if (category.empty())
+            {
+                category = "General";
+            }
+
+            std::string userString =
+                std::to_string(userId);
+
+            char priceBuffer[64];
+            snprintf(
+                priceBuffer,
+                sizeof(priceBuffer),
+                "%.2f",
+                price
+            );
+
+            std::string quantityString =
+                std::to_string(quantity);
+
+            const char* params[7];
+
+            params[0] = userString.c_str();
+            params[1] = name.c_str();
+            params[2] = description.c_str();
+            params[3] = priceBuffer;
+            params[4] = quantityString.c_str();
+            params[5] = category.c_str();
+            params[6] = imageUrl.c_str();
+
+            PGresult* result = PQexecParams(
+                conn,
+                "INSERT INTO public.products "
+                "(seller_id, name, description, price, "
+                "quantity, category, image_url) "
+                "VALUES ($1, $2, $3, $4, $5, $6, $7) "
+                "RETURNING id",
+                7,
+                nullptr,
+                params,
+                nullptr,
+                nullptr,
+                0
+            );
+
+            if (PQresultStatus(result) != PGRES_TUPLES_OK)
+            {
+                std::string error = PQerrorMessage(conn);
+
+                PQclear(result);
+
+                callback(jsonError(
+                    "Failed to create product: " + error,
+                    k500InternalServerError
+                ));
+
+                return;
+            }
+
+            int productId =
+                std::stoi(PQgetvalue(result, 0, 0));
+
+            PQclear(result);
+
+            Json::Value response;
+
+            response["success"] = true;
+            response["message"] = "Product created";
+            response["product_id"] = productId;
+
+            callback(
+                HttpResponse::newHttpJsonResponse(response)
+            );
+        },
+        {Post}
+    );
+
+    // =================================================
+    // SELLER: EDIT PRODUCT (own listings only)
+    // =================================================
+
+    app().registerHandler(
+        "/api/seller/products",
+        [](const HttpRequestPtr& req,
+           std::function<void(const HttpResponsePtr&)>&& callback)
+        {
+            int userId = getUserId(req);
+
+            if (!isValidUserId(userId))
+            {
+                callback(jsonError(
+                    "Login required",
+                    k401Unauthorized
+                ));
+
+                return;
+            }
+
+            if (!isSellerRole(getUserRole(userId)))
+            {
+                callback(jsonError(
+                    "Seller access required",
+                    k403Forbidden
+                ));
+
+                return;
+            }
+
+            auto json = req->getJsonObject();
+
+            if (!json)
+            {
+                callback(jsonError("Invalid JSON"));
+                return;
+            }
+
+            int productId =
+                (*json).get("id", 0).asInt();
+
+            if (productId <= 0)
+            {
+                callback(jsonError("Invalid product ID"));
+                return;
+            }
+
+            std::string name =
+                (*json).get("name", "").asString();
+
+            std::string description =
+                (*json).get("description", "").asString();
+
+            std::string category =
+                (*json).get("category", "General").asString();
+
+            std::string imageUrl =
+                (*json).get("image_url", "").asString();
+
+            double price =
+                (*json).get("price", -1).asDouble();
+
+            int quantity =
+                (*json).get("quantity", -1).asInt();
+
+            if (name.empty() || price < 0 || quantity < 0)
+            {
+                callback(jsonError(
+                    "name, price and quantity are required"
+                ));
+
+                return;
+            }
+
+            std::string userString =
+                std::to_string(userId);
+
+            std::string productIdString =
+                std::to_string(productId);
+
+            char priceBuffer[64];
+            snprintf(
+                priceBuffer,
+                sizeof(priceBuffer),
+                "%.2f",
+                price
+            );
+
+            std::string quantityString =
+                std::to_string(quantity);
+
+            const char* params[8];
+
+            params[0] = userString.c_str();
+            params[1] = productIdString.c_str();
+            params[2] = name.c_str();
+            params[3] = description.c_str();
+            params[4] = priceBuffer;
+            params[5] = quantityString.c_str();
+            params[6] = category.c_str();
+            params[7] = imageUrl.c_str();
+
+            // Single atomic statement; the seller_id filter
+            // guarantees a seller can only edit their own
+            // listings (others return 404).
+            PGresult* result = PQexecParams(
+                conn,
+                "UPDATE public.products "
+                "SET name = $3, description = $4, "
+                "price = $5, quantity = $6, "
+                "category = $7, image_url = $8 "
+                "WHERE id = $2 AND seller_id = $1 "
+                "RETURNING id",
+                8,
+                nullptr,
+                params,
+                nullptr,
+                nullptr,
+                0
+            );
+
+            if (PQresultStatus(result) != PGRES_TUPLES_OK)
+            {
+                std::string error = PQerrorMessage(conn);
+
+                PQclear(result);
+
+                callback(jsonError(
+                    "Failed to update product: " + error,
+                    k500InternalServerError
+                ));
+
+                return;
+            }
+
+            if (PQntuples(result) == 0)
+            {
+                PQclear(result);
+
+                callback(jsonError(
+                    "Product not found",
+                    k404NotFound
+                ));
+
+                return;
+            }
+
+            PQclear(result);
+
+            Json::Value response;
+
+            response["success"] = true;
+            response["message"] = "Product updated";
+
+            callback(
+                HttpResponse::newHttpJsonResponse(response)
+            );
+        },
+        {Put}
+    );
+
+    // =================================================
+    // SELLER: DELETE PRODUCT (own listings only)
+    // =================================================
+
+    app().registerHandler(
+        "/api/seller/products",
+        [](const HttpRequestPtr& req,
+           std::function<void(const HttpResponsePtr&)>&& callback)
+        {
+            int userId = getUserId(req);
+
+            if (!isValidUserId(userId))
+            {
+                callback(jsonError(
+                    "Login required",
+                    k401Unauthorized
+                ));
+
+                return;
+            }
+
+            if (!isSellerRole(getUserRole(userId)))
+            {
+                callback(jsonError(
+                    "Seller access required",
+                    k403Forbidden
+                ));
+
+                return;
+            }
+
+            std::string productIdParameter =
+                req->getParameter("id");
+
+            int productId = 0;
+
+            try
+            {
+                productId =
+                    std::stoi(productIdParameter);
+            }
+            catch (...)
+            {
+                productId = 0;
+            }
+
+            if (productId <= 0)
+            {
+                callback(jsonError("Invalid product ID"));
+                return;
+            }
+
+            std::string userString =
+                std::to_string(userId);
+
+            std::string productIdString =
+                std::to_string(productId);
+
+            const char* params[2];
+
+            params[0] = userString.c_str();
+            params[1] = productIdString.c_str();
+
+            PGresult* result = PQexecParams(
+                conn,
+                "DELETE FROM public.products "
+                "WHERE id = $2 AND seller_id = $1 "
+                "RETURNING id",
+                2,
+                nullptr,
+                params,
+                nullptr,
+                nullptr,
+                0
+            );
+
+            if (PQresultStatus(result) != PGRES_TUPLES_OK)
+            {
+                std::string error = PQerrorMessage(conn);
+
+                PQclear(result);
+
+                // Products referenced by order history cannot
+                // be removed (foreign key protection).
+                if (error.find("foreign key") !=
+                    std::string::npos)
+                {
+                    callback(jsonError(
+                        "This product has orders and cannot "
+                        "be deleted",
+                        k400BadRequest
+                    ));
+
+                    return;
+                }
+
+                callback(jsonError(
+                    "Failed to delete product: " + error,
+                    k500InternalServerError
+                ));
+
+                return;
+            }
+
+            if (PQntuples(result) == 0)
+            {
+                PQclear(result);
+
+                callback(jsonError(
+                    "Product not found",
+                    k404NotFound
+                ));
+
+                return;
+            }
+
+            PQclear(result);
+
+            Json::Value response;
+
+            response["success"] = true;
+            response["message"] = "Product deleted";
+
+            callback(
+                HttpResponse::newHttpJsonResponse(response)
+            );
+        },
+        {Delete}
+    );
+
+    // =================================================
+    // SELLER: ORDERS CONTAINING MY PRODUCTS
+    // =================================================
+
+    app().registerHandler(
+        "/api/seller/orders",
+        [](const HttpRequestPtr& req,
+           std::function<void(const HttpResponsePtr&)>&& callback)
+        {
+            int userId = getUserId(req);
+
+            if (!isValidUserId(userId))
+            {
+                callback(jsonError(
+                    "Login required",
+                    k401Unauthorized
+                ));
+
+                return;
+            }
+
+            if (!isSellerRole(getUserRole(userId)))
+            {
+                callback(jsonError(
+                    "Seller access required",
+                    k403Forbidden
+                ));
+
+                return;
+            }
+
+            std::string userString =
+                std::to_string(userId);
+
+            const char* params[1];
+
+            params[0] = userString.c_str();
+
+            PGresult* result = PQexecParams(
+                conn,
+                "SELECT o.id, o.status, o.total_amount, "
+                "o.order_date, "
+                "STRING_AGG(p.name || ' x' || oi.quantity, "
+                "', ' ORDER BY p.name) "
+                "FROM public.orders o "
+                "JOIN public.order_items oi "
+                "  ON oi.order_id = o.id "
+                "JOIN public.products p "
+                "  ON p.id = oi.product_id "
+                "WHERE p.seller_id = $1 "
+                "GROUP BY o.id, o.status, o.total_amount, "
+                "o.order_date "
+                "ORDER BY o.id DESC",
+                1,
+                nullptr,
+                params,
+                nullptr,
+                nullptr,
+                0
+            );
+
+            if (PQresultStatus(result) != PGRES_TUPLES_OK)
+            {
+                std::string error = PQerrorMessage(conn);
+
+                PQclear(result);
+
+                callback(jsonError(
+                    "Failed to load orders: " + error,
+                    k500InternalServerError
+                ));
+
+                return;
+            }
+
+            Json::Value response;
+
+            response["success"] = true;
+            response["orders"] =
+                Json::Value(Json::arrayValue);
+
+            int rows = PQntuples(result);
+
+            for (int i = 0; i < rows; i++)
+            {
+                Json::Value order;
+
+                order["id"] =
+                    std::stoi(PQgetvalue(result, i, 0));
+
+                order["status"] =
+                    PQgetvalue(result, i, 1);
+
+                order["total_amount"] =
+                    std::stod(PQgetvalue(result, i, 2));
+
+                order["order_date"] =
+                    PQgetvalue(result, i, 3);
+
+                order["my_items"] =
+                    PQgetvalue(result, i, 4);
+
+                response["orders"].append(order);
+            }
+
+            PQclear(result);
+
+            callback(
+                HttpResponse::newHttpJsonResponse(response)
+            );
+        },
+        {Get}
+    );
+
+    // =================================================
+    // SELLER: UPDATE ORDER STATUS (permitted transitions)
+    // =================================================
+
+    app().registerHandler(
+        "/api/seller/orders",
+        [](const HttpRequestPtr& req,
+           std::function<void(const HttpResponsePtr&)>&& callback)
+        {
+            int userId = getUserId(req);
+
+            if (!isValidUserId(userId))
+            {
+                callback(jsonError(
+                    "Login required",
+                    k401Unauthorized
+                ));
+
+                return;
+            }
+
+            if (!isSellerRole(getUserRole(userId)))
+            {
+                callback(jsonError(
+                    "Seller access required",
+                    k403Forbidden
+                ));
+
+                return;
+            }
+
+            auto json = req->getJsonObject();
+
+            if (!json)
+            {
+                callback(jsonError("Invalid JSON"));
+                return;
+            }
+
+            int orderId =
+                (*json).get("order_id", 0).asInt();
+
+            std::string newStatus =
+                (*json).get("status", "").asString();
+
+            if (orderId <= 0)
+            {
+                callback(jsonError("Invalid order ID"));
+                return;
+            }
+
+            // Only these transitions are allowed.
+            const std::map<std::string, std::vector<std::string>>
+                allowedTransitions = {
+                    {"PENDING",
+                        {"CONFIRMED", "CANCELLED"}},
+                    {"CONFIRMED",
+                        {"SHIPPED", "CANCELLED"}},
+                    {"SHIPPED",
+                        {"DELIVERED"}},
+                    {"DELIVERED",
+                        {}},
+                    {"CANCELLED",
+                        {}}
+                };
+
+            if (allowedTransitions.find(newStatus) ==
+                allowedTransitions.end())
+            {
+                callback(jsonError(
+                    "Unknown order status"
+                ));
+
+                return;
+            }
+
+            std::string userString =
+                std::to_string(userId);
+
+            std::string orderIdString =
+                std::to_string(orderId);
+
+            const char* params[2];
+
+            params[0] = userString.c_str();
+            params[1] = orderIdString.c_str();
+
+            // The seller may only touch orders that contain
+            // at least one of their products.
+            PGresult* scopeResult = PQexecParams(
+                conn,
+                "SELECT o.status "
+                "FROM public.orders o "
+                "JOIN public.order_items oi "
+                "  ON oi.order_id = o.id "
+                "JOIN public.products p "
+                "  ON p.id = oi.product_id "
+                "WHERE o.id = $2 AND p.seller_id = $1 "
+                "LIMIT 1",
+                2,
+                nullptr,
+                params,
+                nullptr,
+                nullptr,
+                0
+            );
+
+            if (PQresultStatus(scopeResult) != PGRES_TUPLES_OK ||
+                PQntuples(scopeResult) == 0)
+            {
+                PQclear(scopeResult);
+
+                callback(jsonError(
+                    "Order not found",
+                    k404NotFound
+                ));
+
+                return;
+            }
+
+            std::string currentStatus =
+                PQgetvalue(scopeResult, 0, 0);
+
+            PQclear(scopeResult);
+
+            auto allowed =
+                allowedTransitions.find(currentStatus);
+
+            bool transitionOk = false;
+
+            if (allowed != allowedTransitions.end())
+            {
+                for (const std::string& status :
+                     allowed->second)
+                {
+                    if (status == newStatus)
+                    {
+                        transitionOk = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!transitionOk)
+            {
+                callback(jsonError(
+                    "Cannot change status from " +
+                    currentStatus + " to " + newStatus
+                ));
+
+                return;
+            }
+
+            const char* updateParams[3];
+
+            updateParams[0] = newStatus.c_str();
+            updateParams[1] = userString.c_str();
+            updateParams[2] = orderIdString.c_str();
+
+            PGresult* result = PQexecParams(
+                conn,
+                "UPDATE public.orders o "
+                "SET status = $1 "
+                "WHERE o.id = $3 "
+                "AND EXISTS (SELECT 1 "
+                "  FROM public.order_items oi "
+                "  JOIN public.products p "
+                "    ON p.id = oi.product_id "
+                "  WHERE oi.order_id = o.id "
+                "  AND p.seller_id = $2) "
+                "RETURNING o.id",
+                3,
+                nullptr,
+                updateParams,
+                nullptr,
+                nullptr,
+                0
+            );
+
+            if (PQresultStatus(result) != PGRES_TUPLES_OK)
+            {
+                std::string error = PQerrorMessage(conn);
+
+                PQclear(result);
+
+                callback(jsonError(
+                    "Failed to update order: " + error,
+                    k500InternalServerError
+                ));
+
+                return;
+            }
+
+            PQclear(result);
+
+            Json::Value response;
+
+            response["success"] = true;
+            response["message"] =
+                "Order status updated to " + newStatus;
+
+            callback(
+                HttpResponse::newHttpJsonResponse(response)
+            );
+        },
+        {Put}
     );
 
     // =================================================
