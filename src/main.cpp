@@ -2,6 +2,7 @@
 #include "../include/database.h"
 #include <argon2.h>
 #include <cctype>
+#include <cmath>
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
@@ -421,7 +422,22 @@ void ensureSchema()
         "  CREATE UNIQUE INDEX "
         "  cart_user_product_unique "
         "  ON public.cart(user_id, product_id); "
-        "END IF; END $$"
+        "END IF; END $$",
+
+        // reviews table (P6): one review per buyer per product.
+        // FKs cascade so removing a product/user cleans its reviews;
+        // the UNIQUE pair enforces single review per buyer.
+        "CREATE TABLE IF NOT EXISTS public.reviews ("
+        " id SERIAL PRIMARY KEY,"
+        " product_id INTEGER NOT NULL "
+        "  REFERENCES public.products(id) ON DELETE CASCADE,"
+        " user_id INTEGER NOT NULL "
+        "  REFERENCES public.users(id) ON DELETE CASCADE,"
+        " rating INTEGER NOT NULL "
+        "  CHECK (rating BETWEEN 1 AND 5),"
+        " comment TEXT NOT NULL DEFAULT '',"
+        " created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+        " UNIQUE (product_id, user_id))"
     };
 
     int steps = sizeof(statements) / sizeof(statements[0]);
@@ -482,10 +498,19 @@ int main()
 
             PGresult* result = PQexec(
                 conn,
-                "SELECT id, name, price, quantity, "
-                "image_url, description, category "
-                "FROM public.products "
-                "ORDER BY id"
+                "SELECT p.id, p.name, p.price, p.quantity, "
+                "p.image_url, p.description, p.category, "
+                "COALESCE(s.avg_rating, 0), "
+                "COALESCE(s.review_count, 0) "
+                "FROM public.products p "
+                "LEFT JOIN ("
+                " SELECT product_id, "
+                " ROUND(AVG(rating)::numeric, 1) AS avg_rating, "
+                " COUNT(*) AS review_count "
+                " FROM public.reviews "
+                " GROUP BY product_id"
+                ") s ON s.product_id = p.id "
+                "ORDER BY p.id"
             );
 
             // Older deployments may predate the description and
@@ -552,6 +577,16 @@ int main()
                     columnCount > 6
                         ? PQgetvalue(result, i, 6)
                         : "General";
+
+                product["rating"] =
+                    columnCount > 7
+                        ? std::stod(PQgetvalue(result, i, 7))
+                        : 0.0;
+
+                product["review_count"] =
+                    columnCount > 8
+                        ? std::stoi(PQgetvalue(result, i, 8))
+                        : 0;
 
                 response["products"].append(product);
             }
@@ -3379,6 +3414,673 @@ int main()
 
             response["success"] = true;
             response["message"] = "Listing removed";
+
+            callback(
+                HttpResponse::newHttpJsonResponse(response)
+            );
+        },
+        {Delete}
+    );
+
+    // =================================================
+    // REVIEWS: LIST (public; can_review for sessions)
+    // =================================================
+
+    app().registerHandler(
+        "/api/reviews",
+        [](const HttpRequestPtr& req,
+           std::function<void(const HttpResponsePtr&)>&& callback)
+        {
+            std::string productIdParameter =
+                req->getParameter("product_id");
+
+            int productId = 0;
+
+            try
+            {
+                productId =
+                    std::stoi(productIdParameter);
+            }
+            catch (...)
+            {
+                productId = 0;
+            }
+
+            if (productId <= 0)
+            {
+                callback(jsonError("Invalid product ID"));
+                return;
+            }
+
+            std::string productIdString =
+                std::to_string(productId);
+
+            const char* params[1];
+
+            params[0] = productIdString.c_str();
+
+            PGresult* productResult = PQexecParams(
+                conn,
+                "SELECT seller_id "
+                "FROM public.products "
+                "WHERE id = $1",
+                1,
+                nullptr,
+                params,
+                nullptr,
+                nullptr,
+                0
+            );
+
+            if (PQresultStatus(productResult) !=
+                PGRES_TUPLES_OK)
+            {
+                std::string error = PQerrorMessage(conn);
+
+                PQclear(productResult);
+
+                callback(jsonDbError(
+                    "Failed to load reviews", error));
+                return;
+            }
+
+            if (PQntuples(productResult) == 0)
+            {
+                PQclear(productResult);
+
+                callback(jsonError(
+                    "Product not found",
+                    k404NotFound
+                ));
+                return;
+            }
+
+            int sellerId = 0;
+
+            if (!PQgetisnull(productResult, 0, 0))
+            {
+                try
+                {
+                    sellerId = std::stoi(
+                        PQgetvalue(productResult, 0, 0));
+                }
+                catch (...)
+                {
+                    sellerId = 0;
+                }
+            }
+
+            PQclear(productResult);
+
+            PGresult* result = PQexecParams(
+                conn,
+                "SELECT r.id, r.user_id, u.name, "
+                "r.rating, r.comment, r.created_at "
+                "FROM public.reviews r "
+                "JOIN public.users u ON u.id = r.user_id "
+                "WHERE r.product_id = $1 "
+                "ORDER BY r.id DESC",
+                1,
+                nullptr,
+                params,
+                nullptr,
+                nullptr,
+                0
+            );
+
+            if (PQresultStatus(result) != PGRES_TUPLES_OK)
+            {
+                std::string error = PQerrorMessage(conn);
+
+                PQclear(result);
+
+                callback(jsonDbError(
+                    "Failed to load reviews", error));
+                return;
+            }
+
+            Json::Value response;
+
+            response["success"] = true;
+            response["product_id"] = productId;
+            response["reviews"] =
+                Json::Value(Json::arrayValue);
+
+            double ratingSum = 0.0;
+            int rows = PQntuples(result);
+
+            for (int i = 0; i < rows; i++)
+            {
+                Json::Value review;
+
+                review["id"] =
+                    std::stoi(PQgetvalue(result, i, 0));
+
+                review["user_id"] =
+                    std::stoi(PQgetvalue(result, i, 1));
+
+                review["name"] =
+                    PQgetvalue(result, i, 2);
+
+                review["rating"] =
+                    std::stoi(PQgetvalue(result, i, 3));
+
+                review["comment"] =
+                    PQgetvalue(result, i, 4);
+
+                review["created_at"] =
+                    PQgetvalue(result, i, 5);
+
+                ratingSum += review["rating"].asDouble();
+
+                response["reviews"].append(review);
+            }
+
+            PQclear(result);
+
+            response["count"] = rows;
+
+            response["average"] =
+                rows > 0
+                    ? std::round(
+                          ratingSum / rows * 10.0) / 10.0
+                    : 0.0;
+
+            // Reviews are public, but posting one requires a
+            // verified purchase (non-cancelled order) and the
+            // seller may not review their own product.
+            int userId = getUserId(req);
+
+            bool canReview = false;
+
+            if (isValidUserId(userId) &&
+                userId != sellerId)
+            {
+                std::string userString =
+                    std::to_string(userId);
+
+                const char* checkParams[2];
+
+                checkParams[0] = productIdString.c_str();
+                checkParams[1] = userString.c_str();
+
+                PGresult* check = PQexecParams(
+                    conn,
+                    "SELECT EXISTS ("
+                    " SELECT 1 "
+                    " FROM public.order_items oi "
+                    " JOIN public.orders o "
+                    "   ON o.id = oi.order_id "
+                    " WHERE oi.product_id = $1 "
+                    "   AND o.user_id = $2 "
+                    "   AND o.status <> \'CANCELLED\' "
+                    "   AND NOT EXISTS ("
+                    "     SELECT 1 "
+                    "     FROM public.reviews rv "
+                    "     WHERE rv.product_id = $1 "
+                    "       AND rv.user_id = $2))",
+                    2,
+                    nullptr,
+                    checkParams,
+                    nullptr,
+                    nullptr,
+                    0
+                );
+
+                if (PQresultStatus(check) ==
+                        PGRES_TUPLES_OK &&
+                    PQntuples(check) > 0 &&
+                    std::string(
+                        PQgetvalue(check, 0, 0)) == "t")
+                {
+                    canReview = true;
+                }
+
+                PQclear(check);
+            }
+
+            response["can_review"] = canReview;
+
+            callback(
+                HttpResponse::newHttpJsonResponse(response)
+            );
+        },
+        {Get}
+    );
+
+    // =================================================
+    // REVIEWS: CREATE (verified buyers only)
+    // =================================================
+
+    app().registerHandler(
+        "/api/reviews",
+        [](const HttpRequestPtr& req,
+           std::function<void(const HttpResponsePtr&)>&& callback)
+        {
+            int userId = getUserId(req);
+
+            if (!isValidUserId(userId))
+            {
+                callback(jsonError(
+                    "Login required",
+                    k401Unauthorized
+                ));
+                return;
+            }
+
+            auto json = req->getJsonObject();
+
+            if (!json)
+            {
+                callback(jsonError("Invalid JSON"));
+                return;
+            }
+
+            Json::Value productIdValue =
+                (*json)["product_id"];
+
+            Json::Value ratingValue = (*json)["rating"];
+
+            if (!productIdValue.isIntegral() ||
+                productIdValue.asInt() <= 0)
+            {
+                callback(jsonError("Invalid product ID"));
+                return;
+            }
+
+            if (!ratingValue.isIntegral() ||
+                ratingValue.asInt() < 1 ||
+                ratingValue.asInt() > 5)
+            {
+                callback(jsonError(
+                    "Rating must be a whole number "
+                    "from 1 to 5"
+                ));
+                return;
+            }
+
+            std::string comment;
+
+            Json::Value commentValue = (*json)["comment"];
+
+            if (!commentValue.isNull())
+            {
+                if (!commentValue.isString())
+                {
+                    callback(jsonError(
+                        "Comment must be text"
+                    ));
+                    return;
+                }
+
+                comment = commentValue.asString();
+            }
+
+            if (comment.size() > 1000)
+            {
+                callback(jsonError(
+                    "Comment must be 1000 characters "
+                    "or fewer"
+                ));
+                return;
+            }
+
+            int productId = productIdValue.asInt();
+            int rating = ratingValue.asInt();
+
+            std::string productIdString =
+                std::to_string(productId);
+
+            std::string userString =
+                std::to_string(userId);
+
+            std::string ratingString =
+                std::to_string(rating);
+
+            const char* params[1];
+
+            params[0] = productIdString.c_str();
+
+            PGresult* productResult = PQexecParams(
+                conn,
+                "SELECT seller_id "
+                "FROM public.products "
+                "WHERE id = $1",
+                1,
+                nullptr,
+                params,
+                nullptr,
+                nullptr,
+                0
+            );
+
+            if (PQresultStatus(productResult) !=
+                PGRES_TUPLES_OK)
+            {
+                std::string error = PQerrorMessage(conn);
+
+                PQclear(productResult);
+
+                callback(jsonDbError(
+                    "Failed to post review", error));
+                return;
+            }
+
+            if (PQntuples(productResult) == 0)
+            {
+                PQclear(productResult);
+
+                callback(jsonError(
+                    "Product not found",
+                    k404NotFound
+                ));
+                return;
+            }
+
+            int sellerId = 0;
+
+            if (!PQgetisnull(productResult, 0, 0))
+            {
+                try
+                {
+                    sellerId = std::stoi(
+                        PQgetvalue(productResult, 0, 0));
+                }
+                catch (...)
+                {
+                    sellerId = 0;
+                }
+            }
+
+            PQclear(productResult);
+
+            if (sellerId == userId)
+            {
+                callback(jsonError(
+                    "You cannot review your own product",
+                    k403Forbidden
+                ));
+                return;
+            }
+
+            const char* purchaseParams[2];
+
+            purchaseParams[0] = productIdString.c_str();
+            purchaseParams[1] = userString.c_str();
+
+            PGresult* purchase = PQexecParams(
+                conn,
+                "SELECT EXISTS ("
+                " SELECT 1 "
+                " FROM public.order_items oi "
+                " JOIN public.orders o "
+                "   ON o.id = oi.order_id "
+                " WHERE oi.product_id = $1 "
+                "   AND o.user_id = $2 "
+                "   AND o.status <> \'CANCELLED\')",
+                2,
+                nullptr,
+                purchaseParams,
+                nullptr,
+                nullptr,
+                0
+            );
+
+            if (PQresultStatus(purchase) !=
+                PGRES_TUPLES_OK)
+            {
+                std::string error = PQerrorMessage(conn);
+
+                PQclear(purchase);
+
+                callback(jsonDbError(
+                    "Failed to post review", error));
+                return;
+            }
+
+            bool purchased =
+                PQntuples(purchase) > 0 &&
+                std::string(
+                    PQgetvalue(purchase, 0, 0)) == "t";
+
+            PQclear(purchase);
+
+            if (!purchased)
+            {
+                callback(jsonError(
+                    "Only verified buyers can review "
+                    "this product",
+                    k403Forbidden
+                ));
+                return;
+            }
+
+            PGresult* existing = PQexecParams(
+                conn,
+                "SELECT id FROM public.reviews "
+                "WHERE product_id = $1 "
+                "  AND user_id = $2",
+                2,
+                nullptr,
+                purchaseParams,
+                nullptr,
+                nullptr,
+                0
+            );
+
+            if (PQresultStatus(existing) ==
+                PGRES_TUPLES_OK &&
+                PQntuples(existing) > 0)
+            {
+                PQclear(existing);
+
+                callback(jsonError(
+                    "You have already reviewed this "
+                    "product",
+                    k409Conflict
+                ));
+                return;
+            }
+
+            PQclear(existing);
+
+            const char* insertParams[4];
+
+            insertParams[0] = productIdString.c_str();
+            insertParams[1] = userString.c_str();
+            insertParams[2] = ratingString.c_str();
+            insertParams[3] = comment.c_str();
+
+            PGresult* insert = PQexecParams(
+                conn,
+                "INSERT INTO public.reviews "
+                " (product_id, user_id, rating, comment) "
+                "VALUES ($1, $2, $3, $4) "
+                "RETURNING id",
+                4,
+                nullptr,
+                insertParams,
+                nullptr,
+                nullptr,
+                0
+            );
+
+            if (PQresultStatus(insert) !=
+                PGRES_TUPLES_OK)
+            {
+                std::string error = PQerrorMessage(conn);
+
+                PQclear(insert);
+
+                // UNIQUE (product_id, user_id) is the
+                // backstop if two requests race.
+                if (error.find("duplicate key") !=
+                    std::string::npos)
+                {
+                    callback(jsonError(
+                        "You have already reviewed this "
+                        "product",
+                        k409Conflict
+                    ));
+                    return;
+                }
+
+                callback(jsonDbError(
+                    "Failed to post review", error));
+                return;
+            }
+
+            int reviewId =
+                std::stoi(PQgetvalue(insert, 0, 0));
+
+            PQclear(insert);
+
+            Json::Value response;
+
+            response["success"] = true;
+            response["review_id"] = reviewId;
+            response["message"] = "Review posted";
+
+            callback(
+                HttpResponse::newHttpJsonResponse(response)
+            );
+        },
+        {Post}
+    );
+
+    // =================================================
+    // REVIEWS: DELETE (author or admin)
+    // =================================================
+
+    app().registerHandler(
+        "/api/reviews",
+        [](const HttpRequestPtr& req,
+           std::function<void(const HttpResponsePtr&)>&& callback)
+        {
+            int userId = getUserId(req);
+
+            if (!isValidUserId(userId))
+            {
+                callback(jsonError(
+                    "Login required",
+                    k401Unauthorized
+                ));
+                return;
+            }
+
+            std::string reviewIdParameter =
+                req->getParameter("id");
+
+            int reviewId = 0;
+
+            try
+            {
+                reviewId =
+                    std::stoi(reviewIdParameter);
+            }
+            catch (...)
+            {
+                reviewId = 0;
+            }
+
+            if (reviewId <= 0)
+            {
+                callback(jsonError("Invalid review ID"));
+                return;
+            }
+
+            std::string reviewIdString =
+                std::to_string(reviewId);
+
+            const char* params[1];
+
+            params[0] = reviewIdString.c_str();
+
+            PGresult* existing = PQexecParams(
+                conn,
+                "SELECT user_id "
+                "FROM public.reviews "
+                "WHERE id = $1",
+                1,
+                nullptr,
+                params,
+                nullptr,
+                nullptr,
+                0
+            );
+
+            if (PQresultStatus(existing) !=
+                PGRES_TUPLES_OK)
+            {
+                std::string error = PQerrorMessage(conn);
+
+                PQclear(existing);
+
+                callback(jsonDbError(
+                    "Failed to delete review", error));
+                return;
+            }
+
+            if (PQntuples(existing) == 0)
+            {
+                PQclear(existing);
+
+                callback(jsonError(
+                    "Review not found",
+                    k404NotFound
+                ));
+                return;
+            }
+
+            int authorId =
+                std::stoi(PQgetvalue(existing, 0, 0));
+
+            PQclear(existing);
+
+            bool mayDelete =
+                authorId == userId ||
+                getUserRole(userId) == "ADMIN";
+
+            if (!mayDelete)
+            {
+                callback(jsonError(
+                    "You can only delete your own review",
+                    k403Forbidden
+                ));
+                return;
+            }
+
+            PGresult* result = PQexecParams(
+                conn,
+                "DELETE FROM public.reviews "
+                "WHERE id = $1 "
+                "RETURNING id",
+                1,
+                nullptr,
+                params,
+                nullptr,
+                nullptr,
+                0
+            );
+
+            if (PQresultStatus(result) !=
+                PGRES_TUPLES_OK)
+            {
+                std::string error = PQerrorMessage(conn);
+
+                PQclear(result);
+
+                callback(jsonDbError(
+                    "Failed to delete review", error));
+                return;
+            }
+
+            PQclear(result);
+
+            Json::Value response;
+
+            response["success"] = true;
+            response["message"] = "Review deleted";
 
             callback(
                 HttpResponse::newHttpJsonResponse(response)
