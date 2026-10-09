@@ -246,9 +246,202 @@ HttpResponsePtr jsonError(
     return response;
 }
 
+// Database failures are logged server-side only; browsers get a
+// friendly message instead of raw SQL/libpq details.
+HttpResponsePtr jsonDbError(
+    const std::string& context,
+    const std::string& error)
+{
+    std::cerr << "DB error [" << context << "]: "
+              << error << std::endl;
+
+    return jsonError(context, k500InternalServerError);
+}
+
 bool isValidUserId(int userId)
 {
     return userId > 0;
+}
+
+// =====================================================
+// STARTUP SCHEMA REPAIR
+// =====================================================
+
+// Production was created from an older schema variant and is missing
+// columns the application relies on (observed: users.role absent,
+// which broke login AND registration with "column \"role\" ... does
+// not exist"). Every step below is additive and idempotent so existing
+// data is never dropped or rewritten.
+void ensureSchema()
+{
+    static const char* statements[] =
+    {
+        // Core tables (no-op when they already exist).
+        "CREATE TABLE IF NOT EXISTS public.users ("
+        " id SERIAL PRIMARY KEY,"
+        " name TEXT NOT NULL DEFAULT '',"
+        " email TEXT NOT NULL UNIQUE,"
+        " password_hash TEXT NOT NULL,"
+        " created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
+
+        "CREATE TABLE IF NOT EXISTS public.products ("
+        " id SERIAL PRIMARY KEY,"
+        " name TEXT NOT NULL DEFAULT '',"
+        " description TEXT NOT NULL DEFAULT '',"
+        " price NUMERIC(10,2) NOT NULL DEFAULT 0,"
+        " quantity INTEGER NOT NULL DEFAULT 0,"
+        " category TEXT NOT NULL DEFAULT 'General',"
+        " image_url TEXT NOT NULL DEFAULT '',"
+        " seller_id INTEGER,"
+        " created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
+
+        "CREATE TABLE IF NOT EXISTS public.cart ("
+        " id SERIAL PRIMARY KEY,"
+        " user_id INTEGER NOT NULL,"
+        " product_id INTEGER NOT NULL,"
+        " quantity INTEGER NOT NULL DEFAULT 1)",
+
+        "CREATE TABLE IF NOT EXISTS public.orders ("
+        " id SERIAL PRIMARY KEY,"
+        " user_id INTEGER,"
+        " total_amount NUMERIC(10,2) NOT NULL DEFAULT 0,"
+        " status VARCHAR(30) NOT NULL DEFAULT 'PENDING',"
+        " order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP)",
+
+        "CREATE TABLE IF NOT EXISTS public.order_items ("
+        " id SERIAL PRIMARY KEY,"
+        " order_id INTEGER,"
+        " product_id INTEGER,"
+        " quantity INTEGER NOT NULL DEFAULT 0,"
+        " price NUMERIC(10,2) NOT NULL DEFAULT 0)",
+
+        // users columns (production lacks role).
+        "ALTER TABLE public.users "
+        "ADD COLUMN IF NOT EXISTS role TEXT "
+        "NOT NULL DEFAULT 'BUYER'",
+
+        "ALTER TABLE public.users "
+        "ADD COLUMN IF NOT EXISTS created_at TIMESTAMP "
+        "DEFAULT CURRENT_TIMESTAMP",
+
+        "ALTER TABLE public.users "
+        "ADD COLUMN IF NOT EXISTS name TEXT "
+        "NOT NULL DEFAULT ''",
+
+        "ALTER TABLE public.users "
+        "ADD COLUMN IF NOT EXISTS password_hash TEXT "
+        "NOT NULL DEFAULT ''",
+
+        // products columns.
+        "ALTER TABLE public.products "
+        "ADD COLUMN IF NOT EXISTS description TEXT "
+        "NOT NULL DEFAULT ''",
+
+        "ALTER TABLE public.products "
+        "ADD COLUMN IF NOT EXISTS category TEXT "
+        "NOT NULL DEFAULT 'General'",
+
+        "ALTER TABLE public.products "
+        "ADD COLUMN IF NOT EXISTS image_url TEXT "
+        "NOT NULL DEFAULT ''",
+
+        "ALTER TABLE public.products "
+        "ADD COLUMN IF NOT EXISTS seller_id INTEGER",
+
+        "ALTER TABLE public.products "
+        "ADD COLUMN IF NOT EXISTS price NUMERIC(10,2) "
+        "NOT NULL DEFAULT 0",
+
+        "ALTER TABLE public.products "
+        "ADD COLUMN IF NOT EXISTS quantity INTEGER "
+        "NOT NULL DEFAULT 0",
+
+        // orders columns.
+        "ALTER TABLE public.orders "
+        "ADD COLUMN IF NOT EXISTS user_id INTEGER",
+
+        "ALTER TABLE public.orders "
+        "ADD COLUMN IF NOT EXISTS total_amount "
+        "NUMERIC(10,2) NOT NULL DEFAULT 0",
+
+        "ALTER TABLE public.orders "
+        "ADD COLUMN IF NOT EXISTS status VARCHAR(30) "
+        "NOT NULL DEFAULT 'PENDING'",
+
+        "ALTER TABLE public.orders "
+        "ADD COLUMN IF NOT EXISTS order_date TIMESTAMP "
+        "DEFAULT CURRENT_TIMESTAMP",
+
+        // order_items columns.
+        "ALTER TABLE public.order_items "
+        "ADD COLUMN IF NOT EXISTS order_id INTEGER",
+
+        "ALTER TABLE public.order_items "
+        "ADD COLUMN IF NOT EXISTS product_id INTEGER",
+
+        "ALTER TABLE public.order_items "
+        "ADD COLUMN IF NOT EXISTS quantity INTEGER "
+        "NOT NULL DEFAULT 0",
+
+        "ALTER TABLE public.order_items "
+        "ADD COLUMN IF NOT EXISTS price NUMERIC(10,2) "
+        "NOT NULL DEFAULT 0",
+
+        // cart columns.
+        "ALTER TABLE public.cart "
+        "ADD COLUMN IF NOT EXISTS user_id INTEGER",
+
+        "ALTER TABLE public.cart "
+        "ADD COLUMN IF NOT EXISTS product_id INTEGER",
+
+        "ALTER TABLE public.cart "
+        "ADD COLUMN IF NOT EXISTS quantity INTEGER "
+        "NOT NULL DEFAULT 1",
+
+        // Normalize roles, then constrain them.
+        "UPDATE public.users SET role = 'BUYER' "
+        "WHERE role IS NULL OR "
+        "role NOT IN ('BUYER','SELLER','ADMIN')",
+
+        "DO $$ BEGIN "
+        "IF NOT EXISTS (SELECT 1 FROM pg_constraint "
+        "  WHERE conname = 'users_role_check') THEN "
+        "  ALTER TABLE public.users "
+        "  ADD CONSTRAINT users_role_check CHECK "
+        "  (role IN ('BUYER','SELLER','ADMIN')); "
+        "END IF; END $$",
+
+        // Add-to-cart uses ON CONFLICT (user_id, product_id),
+        // which requires this uniqueness.
+        "DO $$ BEGIN "
+        "IF NOT EXISTS (SELECT 1 FROM pg_index i "
+        "  JOIN pg_class c ON c.oid = i.indrelid "
+        "  WHERE c.relname = 'cart' AND i.indisunique "
+        "  AND i.indnatts = 2) THEN "
+        "  CREATE UNIQUE INDEX "
+        "  cart_user_product_unique "
+        "  ON public.cart(user_id, product_id); "
+        "END IF; END $$"
+    };
+
+    int steps = sizeof(statements) / sizeof(statements[0]);
+
+    for (int i = 0; i < steps; i++)
+    {
+        PGresult* result = PQexec(conn, statements[i]);
+
+        if (PQresultStatus(result) != PGRES_COMMAND_OK)
+        {
+            std::cerr << "Schema repair step " << (i + 1)
+                      << "/" << steps << " failed: "
+                      << PQerrorMessage(conn) << std::endl;
+        }
+
+        PQclear(result);
+    }
+
+    std::cout << "Schema repair completed (" << steps
+              << " idempotent steps)." << std::endl;
 }
 
 // =====================================================
@@ -265,6 +458,10 @@ int main()
     }
 
     std::cout << "Database connected successfully!" << std::endl;
+
+    // Converge any legacy/production schema variant to the
+    // columns this build expects (additive, idempotent).
+    ensureSchema();
 
     // Frontend folder
     app().setDocumentRoot("./frontend");
@@ -312,10 +509,7 @@ int main()
 
                 PQclear(result);
 
-                callback(jsonError(
-                    "Failed to load products: " + error,
-                    k500InternalServerError
-                ));
+                callback(jsonDbError("Failed to load products", error));
 
                 return;
             }
@@ -458,10 +652,7 @@ int main()
 
                 PQclear(checkResult);
 
-                callback(jsonError(
-                    "Database error: " + error,
-                    k500InternalServerError
-                ));
+                callback(jsonDbError("Registration failed. Please try again later.", error));
 
                 return;
             }
@@ -565,10 +756,7 @@ int main()
 
                 PQclear(result);
 
-                callback(jsonError(
-                    "Registration failed: " + error,
-                    k500InternalServerError
-                ));
+                callback(jsonDbError("Registration failed", error));
 
                 return;
             }
@@ -654,10 +842,7 @@ int main()
 
                 PQclear(result);
 
-                callback(jsonError(
-                    "Login database error: " + error,
-                    k500InternalServerError
-                ));
+                callback(jsonDbError("Unable to log in right now. Please try again later.", error));
 
                 return;
             }
@@ -838,10 +1023,7 @@ int main()
 
                 PQclear(result);
 
-                callback(jsonError(
-                    "Failed to load cart: " + error,
-                    k500InternalServerError
-                ));
+                callback(jsonDbError("Failed to load cart", error));
 
                 return;
             }
@@ -987,10 +1169,7 @@ int main()
 
                 PQclear(stockResult);
 
-                callback(jsonError(
-                    "Failed to check stock: " + error,
-                    k500InternalServerError
-                ));
+                callback(jsonDbError("Failed to check stock", error));
 
                 return;
             }
@@ -1059,10 +1238,7 @@ int main()
 
                 PQclear(result);
 
-                callback(jsonError(
-                    "Failed to add to cart: " + error,
-                    k500InternalServerError
-                ));
+                callback(jsonDbError("Failed to add to cart", error));
 
                 return;
             }
@@ -1168,10 +1344,7 @@ int main()
 
                 PQclear(stockResult);
 
-                callback(jsonError(
-                    "Failed to check stock: " + error,
-                    k500InternalServerError
-                ));
+                callback(jsonDbError("Failed to check stock", error));
 
                 return;
             }
@@ -1229,10 +1402,7 @@ int main()
 
                 PQclear(result);
 
-                callback(jsonError(
-                    "Failed to update cart: " + error,
-                    k500InternalServerError
-                ));
+                callback(jsonDbError("Failed to update cart", error));
 
                 return;
             }
@@ -1335,10 +1505,7 @@ int main()
 
                 PQclear(result);
 
-                callback(jsonError(
-                    "Failed to remove item: " + error,
-                    k500InternalServerError
-                ));
+                callback(jsonDbError("Failed to remove item", error));
 
                 return;
             }
@@ -1421,10 +1588,7 @@ int main()
 
                 PQclear(cartResult);
 
-                callback(jsonError(
-                    "Failed to read cart: " + error,
-                    k500InternalServerError
-                ));
+                callback(jsonDbError("Failed to read cart", error));
 
                 return;
             }
@@ -1525,10 +1689,7 @@ int main()
                 PQclear(orderResult);
                 PQclear(cartResult);
 
-                callback(jsonError(
-                    "Order creation failed: " + error,
-                    k500InternalServerError
-                ));
+                callback(jsonDbError("Order creation failed", error));
 
                 return;
             }
@@ -1760,10 +1921,7 @@ int main()
 
                 PQclear(result);
 
-                callback(jsonError(
-                    "Failed to load orders: " + error,
-                    k500InternalServerError
-                ));
+                callback(jsonDbError("Failed to load orders", error));
 
                 return;
             }
@@ -1863,10 +2021,7 @@ int main()
 
                 PQclear(result);
 
-                callback(jsonError(
-                    "Failed to load your products: " + error,
-                    k500InternalServerError
-                ));
+                callback(jsonDbError("Failed to load your products", error));
 
                 return;
             }
@@ -2047,10 +2202,7 @@ int main()
 
                 PQclear(result);
 
-                callback(jsonError(
-                    "Failed to create product: " + error,
-                    k500InternalServerError
-                ));
+                callback(jsonDbError("Failed to create product", error));
 
                 return;
             }
@@ -2201,10 +2353,7 @@ int main()
 
                 PQclear(result);
 
-                callback(jsonError(
-                    "Failed to update product: " + error,
-                    k500InternalServerError
-                ));
+                callback(jsonDbError("Failed to update product", error));
 
                 return;
             }
@@ -2293,6 +2442,45 @@ int main()
             std::string productIdString =
                 std::to_string(productId);
 
+            // Never destroy order history: some schema variants
+            // cascade order_items on product deletion, so check
+            // explicitly before deleting.
+            {
+                const char* checkParams[1];
+
+                checkParams[0] = productIdString.c_str();
+
+                PGresult* checkResult = PQexecParams(
+                    conn,
+                    "SELECT 1 FROM public.order_items "
+                    "WHERE product_id = $1 LIMIT 1",
+                    1,
+                    nullptr,
+                    checkParams,
+                    nullptr,
+                    nullptr,
+                    0
+                );
+
+                bool hasOrders =
+                    PQresultStatus(checkResult) ==
+                        PGRES_TUPLES_OK &&
+                    PQntuples(checkResult) > 0;
+
+                PQclear(checkResult);
+
+                if (hasOrders)
+                {
+                    callback(jsonError(
+                        "This product has orders and cannot "
+                        "be deleted",
+                        k400BadRequest
+                    ));
+
+                    return;
+                }
+            }
+
             const char* params[2];
 
             params[0] = userString.c_str();
@@ -2331,10 +2519,7 @@ int main()
                     return;
                 }
 
-                callback(jsonError(
-                    "Failed to delete product: " + error,
-                    k500InternalServerError
-                ));
+                callback(jsonDbError("Failed to delete product", error));
 
                 return;
             }
@@ -2432,10 +2617,7 @@ int main()
 
                 PQclear(result);
 
-                callback(jsonError(
-                    "Failed to load orders: " + error,
-                    k500InternalServerError
-                ));
+                callback(jsonDbError("Failed to load orders", error));
 
                 return;
             }
@@ -2664,10 +2846,7 @@ int main()
 
                 PQclear(result);
 
-                callback(jsonError(
-                    "Failed to update order: " + error,
-                    k500InternalServerError
-                ));
+                callback(jsonDbError("Failed to update order", error));
 
                 return;
             }
@@ -2731,10 +2910,7 @@ int main()
 
                 PQclear(result);
 
-                callback(jsonError(
-                    "Failed to load users: " + error,
-                    k500InternalServerError
-                ));
+                callback(jsonDbError("Failed to load users", error));
 
                 return;
             }
@@ -2832,10 +3008,7 @@ int main()
 
                 PQclear(result);
 
-                callback(jsonError(
-                    "Failed to load orders: " + error,
-                    k500InternalServerError
-                ));
+                callback(jsonDbError("Failed to load orders", error));
 
                 return;
             }
@@ -2932,10 +3105,7 @@ int main()
 
                 PQclear(result);
 
-                callback(jsonError(
-                    "Failed to load stats: " + error,
-                    k500InternalServerError
-                ));
+                callback(jsonDbError("Failed to load stats", error));
 
                 return;
             }
@@ -3012,10 +3182,7 @@ int main()
 
                 PQclear(result);
 
-                callback(jsonError(
-                    "Failed to load products: " + error,
-                    k500InternalServerError
-                ));
+                callback(jsonDbError("Failed to load products", error));
 
                 return;
             }
@@ -3117,6 +3284,43 @@ int main()
             std::string productIdString =
                 std::to_string(productId);
 
+            // Never destroy order history (see seller delete).
+            {
+                const char* checkParams[1];
+
+                checkParams[0] = productIdString.c_str();
+
+                PGresult* checkResult = PQexecParams(
+                    conn,
+                    "SELECT 1 FROM public.order_items "
+                    "WHERE product_id = $1 LIMIT 1",
+                    1,
+                    nullptr,
+                    checkParams,
+                    nullptr,
+                    nullptr,
+                    0
+                );
+
+                bool hasOrders =
+                    PQresultStatus(checkResult) ==
+                        PGRES_TUPLES_OK &&
+                    PQntuples(checkResult) > 0;
+
+                PQclear(checkResult);
+
+                if (hasOrders)
+                {
+                    callback(jsonError(
+                        "This product has orders and cannot "
+                        "be deleted",
+                        k400BadRequest
+                    ));
+
+                    return;
+                }
+            }
+
             const char* params[1];
 
             params[0] = productIdString.c_str();
@@ -3152,10 +3356,7 @@ int main()
                     return;
                 }
 
-                callback(jsonError(
-                    "Failed to delete product: " + error,
-                    k500InternalServerError
-                ));
+                callback(jsonDbError("Failed to delete product", error));
 
                 return;
             }
