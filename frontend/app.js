@@ -455,6 +455,15 @@ function createProductCard(product) {
             ? `Stock: ${quantity}`
             : "Out of stock";
 
+    const rating = Number(product.rating || 0).toFixed(1);
+
+    const reviewCount = Number(product.review_count || 0);
+
+    const ratingText =
+        reviewCount > 0
+            ? `★ ${rating} (${reviewCount} review${reviewCount === 1 ? "" : "s"})`
+            : "No reviews yet";
+
     return `
         <div class="product-card">
             <img
@@ -480,12 +489,30 @@ function createProductCard(product) {
 
                 <p>${stockText}</p>
 
+                <p class="product-rating">
+                    ${ratingText}
+                </p>
+
                 <button
                     onclick="addToCart(${id})"
                     ${disabled}
                 >
                     Add to Cart
                 </button>
+
+                <button
+                    type="button"
+                    class="reviews-toggle"
+                    onclick="toggleReviews(${id})"
+                >
+                    Reviews
+                </button>
+
+                <div
+                    id="reviewsPanel${id}"
+                    class="reviews-panel"
+                    hidden
+                ></div>
             </div>
         </div>
     `;
@@ -595,6 +622,232 @@ function getProductImage(product) {
     }
 
     return "https://via.placeholder.com/600x400?text=BerciiMart";
+}
+
+function renderStars(rating) {
+    const value = Math.round(Number(rating) || 0);
+
+    return "\u2605".repeat(value) + "\u2606".repeat(
+        Math.max(0, 5 - value)
+    );
+}
+
+async function toggleReviews(productId) {
+    const panel = document.getElementById(`reviewsPanel${productId}`);
+
+    if (!panel) {
+        return;
+    }
+
+    if (!panel.hidden) {
+        panel.hidden = true;
+        return;
+    }
+
+    await loadReviews(productId);
+}
+
+async function loadReviews(productId) {
+    const panel = document.getElementById(`reviewsPanel${productId}`);
+
+    if (!panel) {
+        return;
+    }
+
+    panel.hidden = false;
+    panel.innerHTML = "<p>Loading reviews...</p>";
+
+    try {
+        const response = await fetch(
+            `${API_URL}/reviews?product_id=${productId}`,
+            { headers: authHeaders() }
+        );
+
+        const data = await response.json();
+
+        if (response.status === 401) {
+            handleAuthError();
+            return;
+        }
+
+        if (!response.ok || data.success === false) {
+            throw new Error(data.error || "Failed to load reviews.");
+        }
+
+        const reviews = Array.isArray(data.reviews)
+            ? data.reviews
+            : [];
+
+        const canReview = data.can_review === true;
+
+        const listHtml =
+            reviews.length === 0
+                ? '<p class="review-empty">No reviews yet. Be the first!</p>'
+                : `<ul class="review-list">${reviews
+                      .map(review => {
+                          const authorId =
+                              Number(review.user_id) || 0;
+
+                          const isAdmin =
+                              currentUser &&
+                              currentUser.role === "ADMIN";
+
+                          const mine =
+                              currentUser &&
+                              Number(currentUser.id) === authorId;
+
+                          const canDelete = mine || isAdmin;
+
+                          return `
+                            <li class="review-item">
+                                <div class="review-head">
+                                    <strong>${escapeHtml(
+                                        review.name || "Buyer"
+                                    )}</strong>
+                                    <span class="review-stars">${renderStars(
+                                        review.rating
+                                    )}</span>
+                                    ${
+                                        canDelete
+                                            ? `<button type="button" class="review-delete" onclick="deleteReview(${Number(
+                                                  review.id
+                                              ) || 0}, ${productId})">Delete</button>`
+                                            : ""
+                                    }
+                                </div>
+                                <p>${escapeHtml(
+                                    review.comment || ""
+                                )}</p>
+                                <time>${escapeHtml(
+                                    review.created_at || ""
+                                )}</time>
+                            </li>
+                        `;
+                      })
+                      .join("")}</ul>`;
+
+        const formHtml = canReview
+            ? `
+                <form
+                    id="reviewForm${productId}"
+                    class="review-form"
+                    onsubmit="return submitReview(event, ${productId})"
+                >
+                    <label for="reviewRating${productId}">Your rating</label>
+                    <select id="reviewRating${productId}" required>
+                        <option value="5">5 - Excellent</option>
+                        <option value="4">4 - Good</option>
+                        <option value="3">3 - Average</option>
+                        <option value="2">2 - Poor</option>
+                        <option value="1">1 - Bad</option>
+                    </select>
+                    <label for="reviewComment${productId}">Your review</label>
+                    <textarea
+                        id="reviewComment${productId}"
+                        maxlength="1000"
+                        placeholder="What did you like or dislike?"
+                    ></textarea>
+                    <button type="submit">Post review</button>
+                </form>`
+            : "";
+
+        panel.innerHTML = listHtml + formHtml;
+
+    } catch (error) {
+        console.error("Review loading error:", error);
+
+        panel.innerHTML =
+            '<p class="error">Unable to load reviews.</p>';
+    }
+}
+
+async function submitReview(event, productId) {
+    event.preventDefault();
+
+    if (!currentUser) {
+        showSection("login");
+        return false;
+    }
+
+    const ratingInput =
+        document.getElementById(`reviewRating${productId}`);
+
+    const commentInput =
+        document.getElementById(`reviewComment${productId}`);
+
+    try {
+        const response = await fetch(`${API_URL}/reviews`, {
+            method: "POST",
+            headers: authHeaders({
+                "Content-Type": "application/json"
+            }),
+            body: JSON.stringify({
+                product_id: productId,
+                rating: Number(ratingInput.value),
+                comment: commentInput.value
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.status === 401) {
+            handleAuthError();
+            return false;
+        }
+
+        if (!response.ok || data.success === false) {
+            alert(`Review failed: ${data.error || response.status}`);
+            return false;
+        }
+
+        await loadProducts();
+        await loadReviews(productId);
+
+        return false;
+
+    } catch (error) {
+        console.error("Review submit error:", error);
+        alert("Unable to connect to the server.");
+        return false;
+    }
+}
+
+async function deleteReview(reviewId, productId) {
+    if (!currentUser) {
+        showSection("login");
+        return;
+    }
+
+    try {
+        const response = await fetch(
+            `${API_URL}/reviews?id=${reviewId}`,
+            {
+                method: "DELETE",
+                headers: authHeaders()
+            }
+        );
+
+        const data = await response.json().catch(() => ({}));
+
+        if (response.status === 401) {
+            handleAuthError();
+            return;
+        }
+
+        if (!response.ok || data.success === false) {
+            alert(
+                `Could not delete review: ${data.error || response.status}`
+            );
+            return;
+        }
+
+        await loadProducts();
+        await loadReviews(productId);
+
+    } catch (error) {
+        console.error("Review delete error:", error);
+        alert("Unable to connect to the server.");
+    }
 }
 
 async function addToCart(productId) {
