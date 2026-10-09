@@ -228,3 +228,53 @@ footer {
         height: 160px;
     }
 }
+
+
+/* =====================================================
+   CART QUANTITY CONTROLS
+   ===================================================== */
+
+.cart-item-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.cart-item-controls button {
+    padding: 6px 12px;
+    border: 1px solid #d0d0d0;
+    border-radius: 6px;
+    background: #f7f7f7;
+    color: #222;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+}
+
+.cart-item-controls button:hover:not(:disabled) {
+    background: #ececec;
+}
+
+.cart-item-controls button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.cart-item-controls .cart-quantity {
+    min-width: 24px;
+    text-align: center;
+    font-weight: 600;
+}
+
+.cart-item-controls .remove-btn {
+    margin-left: auto;
+    background: #fdecea;
+    border-color: #f5c6c0;
+    color: #b3261e;
+    font-size: 14px;
+}
+
+.cart-item-controls .remove-btn:hover {
+    background: #fadbd8;
+}

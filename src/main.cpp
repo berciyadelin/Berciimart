@@ -817,6 +817,79 @@ int main()
             std::string quantityString =
                 std::to_string(quantity);
 
+            // Refuse to add more than the available stock
+            // (including what is already in this cart).
+            const char* stockParams[2];
+
+            stockParams[0] = productIdString.c_str();
+            stockParams[1] = userIdString.c_str();
+
+            PGresult* stockResult = PQexecParams(
+                conn,
+                "SELECT p.quantity, "
+                "COALESCE((SELECT c.quantity "
+                "          FROM public.cart c "
+                "          WHERE c.user_id = $2 "
+                "          AND c.product_id = p.id), 0) "
+                "FROM public.products p "
+                "WHERE p.id = $1",
+                2,
+                nullptr,
+                stockParams,
+                nullptr,
+                nullptr,
+                0
+            );
+
+            if (PQresultStatus(stockResult) != PGRES_TUPLES_OK)
+            {
+                std::string error = PQerrorMessage(conn);
+
+                PQclear(stockResult);
+
+                callback(jsonError(
+                    "Failed to check stock: " + error,
+                    k500InternalServerError
+                ));
+
+                return;
+            }
+
+            if (PQntuples(stockResult) == 0)
+            {
+                PQclear(stockResult);
+
+                callback(jsonError(
+                    "Product not found",
+                    k404NotFound
+                ));
+
+                return;
+            }
+
+            int stock =
+                std::stoi(PQgetvalue(stockResult, 0, 0));
+
+            int alreadyInCart =
+                std::stoi(PQgetvalue(stockResult, 0, 1));
+
+            PQclear(stockResult);
+
+            if (alreadyInCart + quantity > stock)
+            {
+                int remaining =
+                    stock - alreadyInCart > 0
+                        ? stock - alreadyInCart
+                        : 0;
+
+                callback(jsonError(
+                    "Only " + std::to_string(remaining) +
+                    " left in stock"
+                ));
+
+                return;
+            }
+
             const char* params[3];
 
             params[0] = userIdString.c_str();
@@ -871,6 +944,289 @@ int main()
             );
         },
         {Post}
+    );
+
+    // =================================================
+    // UPDATE CART ITEM QUANTITY
+    // =================================================
+
+    app().registerHandler(
+        "/api/cart",
+        [](const HttpRequestPtr& req,
+           std::function<void(const HttpResponsePtr&)>&& callback)
+        {
+            int userId = getUserId(req);
+
+            if (!isValidUserId(userId))
+            {
+                callback(jsonError(
+                    "Login required",
+                    k401Unauthorized
+                ));
+
+                return;
+            }
+
+            auto json = req->getJsonObject();
+
+            if (!json)
+            {
+                callback(jsonError("Invalid JSON"));
+                return;
+            }
+
+            int productId =
+                (*json).get("product_id", 0).asInt();
+
+            int quantity =
+                (*json).get("quantity", 0).asInt();
+
+            if (productId <= 0)
+            {
+                callback(jsonError("Invalid product ID"));
+                return;
+            }
+
+            if (quantity <= 0)
+            {
+                callback(jsonError(
+                    "Quantity must be greater than 0"
+                ));
+
+                return;
+            }
+
+            std::string userString =
+                std::to_string(userId);
+
+            std::string productIdString =
+                std::to_string(productId);
+
+            std::string quantityString =
+                std::to_string(quantity);
+
+            // Refuse quantities beyond available stock.
+            const char* stockParams[1];
+
+            stockParams[0] = productIdString.c_str();
+
+            PGresult* stockResult = PQexecParams(
+                conn,
+                "SELECT quantity FROM public.products "
+                "WHERE id = $1",
+                1,
+                nullptr,
+                stockParams,
+                nullptr,
+                nullptr,
+                0
+            );
+
+            if (PQresultStatus(stockResult) != PGRES_TUPLES_OK)
+            {
+                std::string error = PQerrorMessage(conn);
+
+                PQclear(stockResult);
+
+                callback(jsonError(
+                    "Failed to check stock: " + error,
+                    k500InternalServerError
+                ));
+
+                return;
+            }
+
+            if (PQntuples(stockResult) == 0)
+            {
+                PQclear(stockResult);
+
+                callback(jsonError(
+                    "Product not found",
+                    k404NotFound
+                ));
+
+                return;
+            }
+
+            int stock =
+                std::stoi(PQgetvalue(stockResult, 0, 0));
+
+            PQclear(stockResult);
+
+            if (quantity > stock)
+            {
+                callback(jsonError(
+                    "Only " + std::to_string(stock) +
+                    " left in stock"
+                ));
+
+                return;
+            }
+
+            const char* params[3];
+
+            params[0] = userString.c_str();
+            params[1] = productIdString.c_str();
+            params[2] = quantityString.c_str();
+
+            PGresult* result = PQexecParams(
+                conn,
+                "UPDATE public.cart "
+                "SET quantity = $3 "
+                "WHERE user_id = $1 AND product_id = $2 "
+                "RETURNING id",
+                3,
+                nullptr,
+                params,
+                nullptr,
+                nullptr,
+                0
+            );
+
+            if (PQresultStatus(result) != PGRES_TUPLES_OK)
+            {
+                std::string error = PQerrorMessage(conn);
+
+                PQclear(result);
+
+                callback(jsonError(
+                    "Failed to update cart: " + error,
+                    k500InternalServerError
+                ));
+
+                return;
+            }
+
+            if (PQntuples(result) == 0)
+            {
+                PQclear(result);
+
+                callback(jsonError(
+                    "Item is not in your cart",
+                    k404NotFound
+                ));
+
+                return;
+            }
+
+            PQclear(result);
+
+            Json::Value response;
+
+            response["success"] = true;
+            response["message"] = "Cart updated";
+
+            callback(
+                HttpResponse::newHttpJsonResponse(response)
+            );
+        },
+        {Put}
+    );
+
+    // =================================================
+    // REMOVE CART ITEM
+    // =================================================
+
+    app().registerHandler(
+        "/api/cart",
+        [](const HttpRequestPtr& req,
+           std::function<void(const HttpResponsePtr&)>&& callback)
+        {
+            int userId = getUserId(req);
+
+            if (!isValidUserId(userId))
+            {
+                callback(jsonError(
+                    "Login required",
+                    k401Unauthorized
+                ));
+
+                return;
+            }
+
+            std::string productIdParameter =
+                req->getParameter("product_id");
+
+            int productId = 0;
+
+            try
+            {
+                productId =
+                    std::stoi(productIdParameter);
+            }
+            catch (...)
+            {
+                productId = 0;
+            }
+
+            if (productId <= 0)
+            {
+                callback(jsonError("Invalid product ID"));
+                return;
+            }
+
+            std::string userString =
+                std::to_string(userId);
+
+            std::string productIdString =
+                std::to_string(productId);
+
+            const char* params[2];
+
+            params[0] = userString.c_str();
+            params[1] = productIdString.c_str();
+
+            PGresult* result = PQexecParams(
+                conn,
+                "DELETE FROM public.cart "
+                "WHERE user_id = $1 AND product_id = $2 "
+                "RETURNING id",
+                2,
+                nullptr,
+                params,
+                nullptr,
+                nullptr,
+                0
+            );
+
+            if (PQresultStatus(result) != PGRES_TUPLES_OK)
+            {
+                std::string error = PQerrorMessage(conn);
+
+                PQclear(result);
+
+                callback(jsonError(
+                    "Failed to remove item: " + error,
+                    k500InternalServerError
+                ));
+
+                return;
+            }
+
+            if (PQntuples(result) == 0)
+            {
+                PQclear(result);
+
+                callback(jsonError(
+                    "Item is not in your cart",
+                    k404NotFound
+                ));
+
+                return;
+            }
+
+            PQclear(result);
+
+            Json::Value response;
+
+            response["success"] = true;
+            response["message"] = "Item removed from cart";
+
+            callback(
+                HttpResponse::newHttpJsonResponse(response)
+            );
+        },
+        {Delete}
     );
 
     // =================================================

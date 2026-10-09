@@ -634,6 +634,9 @@ async function loadCart() {
                 const price =
                     Number(item.price || 0);
 
+                const productId =
+                    Number(item.product_id) || 0;
+
                 return `
                     <div class="cart-item">
                         <strong>${name}</strong>
@@ -641,6 +644,29 @@ async function loadCart() {
                             ₹${price.toFixed(2)}
                             × ${quantity}
                         </span>
+
+                        <div class="cart-item-controls">
+                            <button
+                                type="button"
+                                aria-label="Decrease quantity"
+                                onclick="changeCartQuantity(${productId}, ${quantity - 1})"
+                                ${quantity <= 1 ? "disabled" : ""}
+                            >−</button>
+
+                            <span class="cart-quantity">${quantity}</span>
+
+                            <button
+                                type="button"
+                                aria-label="Increase quantity"
+                                onclick="changeCartQuantity(${productId}, ${quantity + 1})"
+                            >+</button>
+
+                            <button
+                                type="button"
+                                class="remove-btn"
+                                onclick="removeFromCart(${productId})"
+                            >Remove</button>
+                        </div>
                     </div>
                 `;
             })
@@ -655,6 +681,84 @@ async function loadCart() {
         console.error("Cart error:", error);
         container.innerHTML =
             "<p>Unable to load cart.</p>";
+    }
+}
+
+async function changeCartQuantity(productId, quantity) {
+    if (!currentUser) {
+        showSection("login");
+        return;
+    }
+
+    if (!Number.isInteger(quantity) || quantity < 1) {
+        await removeFromCart(productId);
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/cart`, {
+            method: "PUT",
+            headers: authHeaders({
+                "Content-Type": "application/json"
+            }),
+            body: JSON.stringify({
+                product_id: productId,
+                quantity: quantity
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.status === 401) {
+            handleAuthError();
+            return;
+        }
+
+        if (!response.ok || data.success === false) {
+            alert(data.error || "Unable to update cart.");
+            return;
+        }
+
+        await loadCart();
+
+    } catch (error) {
+        console.error("Cart update error:", error);
+        alert("Unable to connect to the server.");
+    }
+}
+
+async function removeFromCart(productId) {
+    if (!currentUser) {
+        showSection("login");
+        return;
+    }
+
+    try {
+        const response = await fetch(
+            `${API_URL}/cart?product_id=${encodeURIComponent(productId)}`,
+            {
+                method: "DELETE",
+                headers: authHeaders()
+            }
+        );
+
+        const data = await response.json();
+
+        if (response.status === 401) {
+            handleAuthError();
+            return;
+        }
+
+        if (!response.ok || data.success === false) {
+            alert(data.error || "Unable to remove item.");
+            return;
+        }
+
+        await loadCart();
+
+    } catch (error) {
+        console.error("Cart remove error:", error);
+        alert("Unable to connect to the server.");
     }
 }
 
