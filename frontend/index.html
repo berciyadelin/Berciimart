@@ -237,6 +237,84 @@
     </footer>
 
 
+    <!-- MOCK PAYMENT CONFIRMATION -->
+
+    <div id="paymentModal" class="modal-overlay" hidden>
+
+        <div
+            class="modal-box"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="paymentTitle"
+            onclick="if (event.target === this) closePaymentModal()"
+        >
+
+            <h2 id="paymentTitle">
+                Confirm Payment
+            </h2>
+
+            <p class="modal-note">
+                Demo checkout — this is a mock payment.
+                No real card is charged.
+            </p>
+
+            <p class="modal-total">
+                Amount: ₹<span id="paymentTotal">0.00</span>
+            </p>
+
+            <form id="paymentForm">
+
+                <input
+                    type="text"
+                    id="paymentCard"
+                    placeholder="Card number (16 digits)"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    required
+                >
+
+                <div class="modal-row">
+                    <input
+                        type="text"
+                        id="paymentExpiry"
+                        placeholder="MM/YY"
+                        autocomplete="off"
+                        required
+                    >
+
+                    <input
+                        type="text"
+                        id="paymentCvc"
+                        placeholder="CVC"
+                        inputmode="numeric"
+                        autocomplete="off"
+                        required
+                    >
+                </div>
+
+                <p id="paymentMessage" class="modal-error"></p>
+
+                <div class="modal-actions">
+                    <button
+                        type="button"
+                        class="link-button"
+                        onclick="closePaymentModal()"
+                    >
+                        Cancel
+                    </button>
+
+                    <button type="submit" id="paymentSubmit">
+                        Pay (mock)
+                    </button>
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+
+
     <script src="app.js"></script>
 
 </body>

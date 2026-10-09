@@ -17,6 +17,12 @@ document.addEventListener("DOMContentLoaded", () => {
         registerForm.addEventListener("submit", handleRegister);
     }
 
+    const paymentForm = document.getElementById("paymentForm");
+
+    if (paymentForm) {
+        paymentForm.addEventListener("submit", submitPayment);
+    }
+
     const searchInput = document.getElementById("productSearch");
     const categoryFilter = document.getElementById("categoryFilter");
 
@@ -762,10 +768,88 @@ async function removeFromCart(productId) {
     }
 }
 
-async function checkout() {
+function openPaymentModal() {
     if (!currentUser) {
         alert("Please log in first.");
         return;
+    }
+
+    const modal = document.getElementById("paymentModal");
+    const totalElement = document.getElementById("cartTotal");
+    const paymentTotal = document.getElementById("paymentTotal");
+    const message = document.getElementById("paymentMessage");
+
+    if (!modal) {
+        return;
+    }
+
+    if (paymentTotal) {
+        paymentTotal.textContent =
+            totalElement ? totalElement.textContent : "0.00";
+    }
+
+    if (message) {
+        message.textContent = "";
+    }
+
+    modal.hidden = false;
+}
+
+function closePaymentModal() {
+    const modal = document.getElementById("paymentModal");
+
+    if (modal) {
+        modal.hidden = true;
+    }
+}
+
+function checkout() {
+    openPaymentModal();
+}
+
+async function submitPayment(event) {
+    event.preventDefault();
+
+    const cardInput = document.getElementById("paymentCard");
+    const expiryInput = document.getElementById("paymentExpiry");
+    const cvcInput = document.getElementById("paymentCvc");
+    const message = document.getElementById("paymentMessage");
+    const submitButton = document.getElementById("paymentSubmit");
+
+    const card = (cardInput?.value || "").replace(/[\s-]/g, "");
+    const expiry = (expiryInput?.value || "").trim();
+    const cvc = (cvcInput?.value || "").trim();
+
+    // Client-side validation of the mock card form only;
+    // no card data is ever sent to the server.
+    if (!/^\d{16}$/.test(card)) {
+        if (message) {
+            message.textContent = "Enter a 16-digit card number.";
+        }
+        return;
+    }
+
+    if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(expiry)) {
+        if (message) {
+            message.textContent = "Enter expiry as MM/YY.";
+        }
+        return;
+    }
+
+    if (!/^\d{3,4}$/.test(cvc)) {
+        if (message) {
+            message.textContent = "Enter a 3 or 4 digit CVC.";
+        }
+        return;
+    }
+
+    if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = "Processing...";
+    }
+
+    if (message) {
+        message.textContent = "";
     }
 
     try {
@@ -785,18 +869,42 @@ async function checkout() {
         }
 
         if (!response.ok || data.success === false) {
-            alert(data.error || "Checkout failed.");
+            if (message) {
+                message.textContent =
+                    data.error || "Checkout failed.";
+            }
             return;
         }
 
-        alert("Order placed successfully.");
+        closePaymentModal();
+
+        alert(
+            "Mock payment confirmed. Order #" +
+            Number(data.order_id) +
+            " placed for ₹" +
+            Number(data.total || 0).toFixed(2) +
+            "."
+        );
+
+        if (cardInput) cardInput.value = "";
+        if (expiryInput) expiryInput.value = "";
+        if (cvcInput) cvcInput.value = "";
 
         await loadCart();
         await loadOrders();
 
     } catch (error) {
         console.error("Checkout error:", error);
-        alert("Unable to connect to the server.");
+
+        if (message) {
+            message.textContent =
+                "Unable to connect to the server. Please try again.";
+        }
+    } finally {
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = "Pay (mock)";
+        }
     }
 }
 
