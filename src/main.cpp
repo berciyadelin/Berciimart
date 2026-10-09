@@ -1,13 +1,116 @@
 #include <drogon/drogon.h>
 #include "../include/database.h"
 #include <argon2.h>
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <mutex>
 #include <random>
 #include <string>
+#include <unordered_map>
 
 using namespace drogon;
+
+// =====================================================
+// SERVER-SIDE SESSIONS
+// =====================================================
+
+// Identity used to come from a client-supplied X-User-Id header or a
+// body "user_id" field, which any caller could forge. Sessions are now
+// opaque random tokens created at login and stored only here.
+
+struct UserSession
+{
+    int userId;
+    std::chrono::steady_clock::time_point expiresAt;
+};
+
+const int SESSION_HOURS = 24;
+
+std::mutex sessionMutex;
+std::unordered_map<std::string, UserSession> sessionStore;
+
+std::string randomToken()
+{
+    static const char* hexDigits = "0123456789abcdef";
+
+    std::random_device randomSource;
+    std::string token;
+
+    token.reserve(64);
+
+    for (int i = 0; i < 32; i++)
+    {
+        unsigned char byte =
+            static_cast<unsigned char>(randomSource() & 0xFF);
+
+        token.push_back(hexDigits[byte >> 4]);
+        token.push_back(hexDigits[byte & 0x0F]);
+    }
+
+    return token;
+}
+
+std::string createSession(int userId)
+{
+    std::string token = randomToken();
+
+    std::lock_guard<std::mutex> lock(sessionMutex);
+
+    auto now = std::chrono::steady_clock::now();
+
+    // Remove expired sessionStore so the map cannot grow forever.
+    for (auto it = sessionStore.begin(); it != sessionStore.end();)
+    {
+        if (it->second.expiresAt <= now)
+            it = sessionStore.erase(it);
+        else
+            ++it;
+    }
+
+    UserSession session;
+
+    session.userId = userId;
+    session.expiresAt =
+        now + std::chrono::hours(SESSION_HOURS);
+
+    sessionStore[token] = session;
+
+    return token;
+}
+
+void destroySession(const std::string& token)
+{
+    if (token.empty())
+        return;
+
+    std::lock_guard<std::mutex> lock(sessionMutex);
+
+    sessionStore.erase(token);
+}
+
+int sessionUserId(const std::string& token)
+{
+    if (token.empty())
+        return 0;
+
+    std::lock_guard<std::mutex> lock(sessionMutex);
+
+    auto it = sessionStore.find(token);
+
+    if (it == sessionStore.end())
+        return 0;
+
+    if (it->second.expiresAt <=
+        std::chrono::steady_clock::now())
+    {
+        sessionStore.erase(it);
+        return 0;
+    }
+
+    return it->second.userId;
+}
 
 // =====================================================
 // HELPER FUNCTIONS
@@ -15,19 +118,9 @@ using namespace drogon;
 
 int getUserId(const HttpRequestPtr& req)
 {
-    auto header = req->getHeader("X-User-Id");
-
-    if (header.empty())
-        return 0;
-
-    try
-    {
-        return std::stoi(header);
-    }
-    catch (...)
-    {
-        return 0;
-    }
+    return sessionUserId(
+        req->getHeader("X-Session-Token")
+    );
 }
 
 HttpResponsePtr jsonError(
@@ -212,6 +305,15 @@ int main()
             {
                 callback(jsonError(
                     "Username, email and password are required"
+                ));
+
+                return;
+            }
+
+            if (password.length() < 8)
+            {
+                callback(jsonError(
+                    "Password must be at least 8 characters"
                 ));
 
                 return;
@@ -497,7 +599,8 @@ int main()
                 return;
             }
 
-            currentUserId = userId;
+            std::string sessionToken =
+                createSession(userId);
 
             PQclear(result);
 
@@ -509,6 +612,32 @@ int main()
             response["name"] = name;
             response["email"] = email;
             response["role"] = role;
+            response["session_token"] = sessionToken;
+
+            callback(
+                HttpResponse::newHttpJsonResponse(response)
+            );
+        },
+        {Post}
+    );
+
+    // =================================================
+    // LOGOUT
+    // =================================================
+
+    app().registerHandler(
+        "/api/logout",
+        [](const HttpRequestPtr& req,
+           std::function<void(const HttpResponsePtr&)>&& callback)
+        {
+            destroySession(
+                req->getHeader("X-Session-Token")
+            );
+
+            Json::Value response;
+
+            response["success"] = true;
+            response["message"] = "Logged out";
 
             callback(
                 HttpResponse::newHttpJsonResponse(response)
@@ -531,7 +660,7 @@ int main()
             if (!isValidUserId(userId))
             {
                 callback(jsonError(
-                    "Invalid user ID",
+                    "Login required",
                     k401Unauthorized
                 ));
 
@@ -637,23 +766,17 @@ int main()
         {
             int userId = getUserId(req);
 
-            auto json = req->getJsonObject();
-
-            if (json && (*json).isMember("user_id"))
-            {
-                userId =
-                    (*json)["user_id"].asInt();
-            }
-
             if (!isValidUserId(userId))
             {
                 callback(jsonError(
-                    "Invalid user ID",
+                    "Login required",
                     k401Unauthorized
                 ));
 
                 return;
             }
+
+            auto json = req->getJsonObject();
 
             if (!json)
             {
@@ -761,18 +884,10 @@ int main()
         {
             int userId = getUserId(req);
 
-            auto json = req->getJsonObject();
-
-            if (json && (*json).isMember("user_id"))
-            {
-                userId =
-                    (*json)["user_id"].asInt();
-            }
-
             if (!isValidUserId(userId))
             {
                 callback(jsonError(
-                    "Invalid user ID",
+                    "Login required",
                     k401Unauthorized
                 ));
 
@@ -1115,7 +1230,7 @@ int main()
             if (!isValidUserId(userId))
             {
                 callback(jsonError(
-                    "Invalid user ID",
+                    "Login required",
                     k401Unauthorized
                 ));
 

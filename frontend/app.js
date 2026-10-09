@@ -32,10 +32,15 @@ document.addEventListener("DOMContentLoaded", () => {
     if (savedUser) {
         try {
             currentUser = JSON.parse(savedUser);
-            if (currentUser && currentUser.id) {
+
+            if (currentUser && currentUser.id && currentUser.token) {
                 showSection("products");
                 return;
             }
+
+            // Sessions issued before server-side tokens are invalid.
+            currentUser = null;
+            localStorage.removeItem("berciimart_user");
         } catch (e) {
             console.error("Failed to parse saved user from localStorage:", e);
         }
@@ -171,7 +176,8 @@ async function handleLogin(event) {
             id: data.user_id,
             name: data.name,
             email: data.email,
-            role: data.role
+            role: data.role,
+            token: data.session_token || null
         };
 
         localStorage.setItem(
@@ -190,7 +196,37 @@ async function handleLogin(event) {
     }
 }
 
+function authHeaders(extra = {}) {
+    const headers = { ...extra };
+
+    if (currentUser && currentUser.token) {
+        headers["X-Session-Token"] = currentUser.token;
+    }
+
+    return headers;
+}
+
+function handleAuthError() {
+    currentUser = null;
+    cart = [];
+    orders = [];
+
+    localStorage.removeItem("berciimart_user");
+
+    showSection("login");
+    alert("Your session has ended. Please log in again.");
+}
+
 function logout() {
+    if (currentUser && currentUser.token) {
+        fetch(`${API_URL}/logout`, {
+            method: "POST",
+            headers: authHeaders()
+        }).catch(() => {
+            /* offline: local logout still continues */
+        });
+    }
+
     currentUser = null;
     cart = [];
     orders = [];
@@ -505,18 +541,21 @@ async function addToCart(productId) {
     try {
         const response = await fetch(`${API_URL}/cart`, {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "X-User-Id": String(currentUser.id)
-            },
+            headers: authHeaders({
+                "Content-Type": "application/json"
+            }),
             body: JSON.stringify({
-                user_id: currentUser.id,
                 product_id: productId,
                 quantity: 1
             })
         });
 
         const data = await response.json();
+
+        if (response.status === 401) {
+            handleAuthError();
+            return;
+        }
 
         if (!response.ok || data.success === false) {
             alert(data.error || "Unable to add product to cart.");
@@ -555,12 +594,15 @@ async function loadCart() {
 
     try {
         const response = await fetch(`${API_URL}/cart`, {
-            headers: {
-                "X-User-Id": String(currentUser.id)
-            }
+            headers: authHeaders()
         });
 
         const data = await response.json();
+
+        if (response.status === 401) {
+            handleAuthError();
+            return;
+        }
 
         if (!response.ok || data.success === false) {
             throw new Error(data.error || "Failed to load cart.");
@@ -625,16 +667,18 @@ async function checkout() {
     try {
         const response = await fetch(`${API_URL}/checkout`, {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "X-User-Id": String(currentUser.id)
-            },
-            body: JSON.stringify({
-                user_id: currentUser.id
-            })
+            headers: authHeaders({
+                "Content-Type": "application/json"
+            }),
+            body: JSON.stringify({})
         });
 
         const data = await response.json();
+
+        if (response.status === 401) {
+            handleAuthError();
+            return;
+        }
 
         if (!response.ok || data.success === false) {
             alert(data.error || "Checkout failed.");
@@ -668,12 +712,15 @@ async function loadOrders() {
 
     try {
         const response = await fetch(`${API_URL}/orders`, {
-            headers: {
-                "X-User-Id": String(currentUser.id)
-            }
+            headers: authHeaders()
         });
 
         const data = await response.json();
+
+        if (response.status === 401) {
+            handleAuthError();
+            return;
+        }
 
         if (!response.ok || data.success === false) {
             throw new Error(data.error || "Failed to load orders.");
