@@ -1,5 +1,6 @@
 #include <drogon/drogon.h>
 #include "../include/database.h"
+#include "service/FaqService.h"
 #include <argon2.h>
 #include <cctype>
 #include <cmath>
@@ -4087,6 +4088,85 @@ int main()
             );
         },
         {Delete}
+    );
+
+    // =================================================
+    // FAQ CHATBOT (separate feature, no database dependency)
+    // =================================================
+    //
+    // Answers marketplace questions with the knowledge base in
+    // src/service/FaqService.h. It deliberately never touches
+    // the database, so the assistant keeps answering (and falls
+    // back to a friendly message) even if PostgreSQL is down.
+
+    app().registerHandler(
+        "/api/faq",
+        [](const HttpRequestPtr& req,
+           std::function<void(const HttpResponsePtr&)>&& callback)
+        {
+            auto json = req->getJsonObject();
+
+            std::string question;
+
+            if (json && (*json).isMember("question"))
+            {
+                question = (*json)["question"].asString();
+            }
+
+            if (faq::normalize(question).empty())
+            {
+                callback(jsonError("Question is required"));
+                return;
+            }
+
+            const faq::FaqMatch match =
+                faq::answerQuestion(question);
+
+            Json::Value response;
+
+            response["success"] = true;
+            response["question"] = question;
+            response["matched"] = match.matched;
+            response["topic"] = match.topic;
+            response["answer"] = match.answer;
+
+            callback(
+                HttpResponse::newHttpJsonResponse(response)
+            );
+        },
+        {Post}
+    );
+
+    app().registerHandler(
+        "/api/faq",
+        [](const HttpRequestPtr& req,
+           std::function<void(const HttpResponsePtr&)>&& callback)
+        {
+            const std::string question =
+                req->getParameter("question");
+
+            if (faq::normalize(question).empty())
+            {
+                callback(jsonError("Question is required"));
+                return;
+            }
+
+            const faq::FaqMatch match =
+                faq::answerQuestion(question);
+
+            Json::Value response;
+
+            response["success"] = true;
+            response["question"] = question;
+            response["matched"] = match.matched;
+            response["topic"] = match.topic;
+            response["answer"] = match.answer;
+
+            callback(
+                HttpResponse::newHttpJsonResponse(response)
+            );
+        },
+        {Get}
     );
 
     // =================================================
