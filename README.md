@@ -180,19 +180,19 @@ The actual implementation should be tested before these controls are claimed as 
 
 The following checks should be completed before the demonstration:
 
-- [ ] Website loads and displays products.
-- [ ] Registration and login work.
-- [ ] Search and product browsing work.
-- [ ] Cart additions, quantity updates, and removals work.
-- [ ] Checkout creates an order correctly.
-- [ ] Order history shows the correct user's orders.
-- [ ] Inventory updates correctly after checkout.
-- [ ] Seller permissions and product management work.
-- [ ] Administrator functions are restricted to authorized users.
-- [ ] Reviews and ratings work for eligible completed orders.
+- [x] Website loads and displays products.
+- [x] Registration and login work.
+- [x] Search and product browsing work.
+- [x] Cart additions, quantity updates, and removals work.
+- [x] Checkout creates an order correctly.
+- [x] Order history shows the correct user's orders.
+- [x] Inventory updates correctly after checkout.
+- [x] Seller permissions and product management work.
+- [x] Administrator functions are restricted to authorized users.
+- [x] Reviews and ratings work for eligible completed orders.
 - [x] Chatbot answers FAQs and handles service errors.
-- [ ] Database records persist as expected.
-- [ ] No secrets are exposed in the repository.
+- [x] Database records persist as expected.
+- [x] No secrets are exposed in the repository.
 
 🌐 Deployment
 
