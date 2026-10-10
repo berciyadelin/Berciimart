@@ -7,9 +7,6 @@ A C++ and PostgreSQL-Powered Multi-Seller E-Commerce Marketplace
 🌐 Live Demo: https://berciimart.onrender.com/
 💻 Source Code: https://github.com/berciyadelin/Berciimart
 
-🎓 Project: Capstone Project — Final Review, October 10, 2026
-
-
 🚀 About BerciiMart
 
 BerciiMart is a multi-seller e-commerce marketplace designed to bring buyers, sellers, and administrators together in one organized digital shopping environment.
