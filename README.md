@@ -91,6 +91,69 @@ CMake| Build configuration
 Git and GitHub| Version control
 Render| Public deployment
 
+🛠️ Setup and Execution
+
+Prerequisites
+
+- C++20 compiler (GCC 13+, Clang 15+, or MSVC 2022)
+- CMake 3.20 or newer
+- PostgreSQL 13 or newer
+- Build dependencies (Linux, same list used by CI and the Dockerfile):
+
+```
+sudo apt-get install -y build-essential cmake pkg-config libpq-dev   libargon2-dev libdrogon-dev libjsoncpp-dev libssl-dev uuid-dev   zlib1g-dev libc-ares-dev libbrotli-dev libhiredis-dev   libyaml-cpp-dev libcurl4-openssl-dev
+```
+
+1. Clone the repository
+
+```
+git clone https://github.com/berciyadelin/Berciimart.git
+cd Berciimart
+```
+
+2. Create and prepare the PostgreSQL database
+
+```
+createdb berciimart
+psql -d berciimart -f database/schema.sql
+psql -d berciimart -f database/seed.sql    # optional demo products
+```
+
+The server also runs an additive, idempotent schema repair at startup,
+so an existing/older database is upgraded automatically.
+
+3. Configure the environment (copy `.env.example` to `.env` and edit it)
+
+- `DATABASE_URL` (required) — e.g. `postgres://user:password@localhost:5432/berciimart`
+- `PORT` (optional) — HTTP port, defaults to `8080`
+- `ADMIN_EMAILS` (optional) — comma-separated emails promoted to ADMIN at login.
+  There is no public registration path to ADMIN.
+
+4. Build
+
+```
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j$(nproc)
+```
+
+5. Run from the repository root (the web interface is served from `./frontend`)
+
+```
+./build/BerciiMart
+```
+
+Then open http://localhost:8080 in a browser.
+
+6. Tests
+
+- C++ tests: `ctest --test-dir build --output-on-failure` (includes the FAQ chatbot test)
+- Frontend chatbot tests: `node tests/chatbot_fallback_test.js` (plain Node, no packages needed)
+- GitHub Actions builds the project and runs the C++ tests on every push and pull request to `main`.
+
+Windows note: install dependencies with `vcpkg install`, then configure CMake with
+`-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake`
+(the exact flags used in CI are in `.github/workflows/cmake-multi-platform.yml`).
+
 🔄 How the System Works
 
 1. A user opens the BerciiMart website.
@@ -137,7 +200,7 @@ The following checks should be completed before the demonstration:
 
 Live Website: https://berciimart.onrender.com/
 
-BerciiMart is hosted on Render for public demonstration. The live site should be tested end to end before the final review, as public availability alone does not confirm that every feature works.
+BerciiMart is hosted on Render for public demonstration. Render builds the `Dockerfile` in this repository and deploys automatically whenever a new commit lands on `main`. The Render service must have `DATABASE_URL` (and optionally `PORT`) set in its environment settings. The live site should be tested end to end before the final review, as public availability alone does not confirm that every feature works.
 
 🔮 Future Enhancements
 
