@@ -60,7 +60,7 @@ BerciiMart brings these activities together in one system.
 
 🤖 5. Smart Shopping Assistant
 
-The planned chatbot provides a conversational way for users to ask common marketplace questions, such as:
+BerciiMart includes a FAQ chatbot assistant that provides a conversational way for users to ask common marketplace questions, such as:
 
 - How do I add a product to my cart?
 - How does checkout work?
@@ -68,7 +68,7 @@ The planned chatbot provides a conversational way for users to ask common market
 - How can a seller manage products?
 - What should I do if a feature is unavailable?
 
-The chatbot should remain focused on marketplace assistance and provide a fallback when its service is unavailable.
+The chatbot remains focused on marketplace assistance: it answers through a dedicated `/api/faq` endpoint (src/service/FaqService.h), needs no login and no database access, and falls back to a built-in copy of the same answers (frontend/chatbot.js) when the service is unavailable. It lives in its own widget (frontend/chatbot.css, frontend/chatbot.js) with prefixed styles, so it never touches other site widgets.
 
 🌟 What Makes BerciiMart Interesting?
 
@@ -129,7 +129,7 @@ The following checks should be completed before the demonstration:
 - [ ] Seller permissions and product management work.
 - [ ] Administrator functions are restricted to authorized users.
 - [ ] Reviews and ratings work for eligible completed orders.
-- [ ] Chatbot answers FAQs and handles service errors.
+- [x] Chatbot answers FAQs and handles service errors.
 - [ ] Database records persist as expected.
 - [ ] No secrets are exposed in the repository.
 

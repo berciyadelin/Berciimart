@@ -42,3 +42,20 @@ target_link_libraries(DatabaseTest
     PRIVATE
     ${PostgreSQL_LIBRARIES}
 )
+
+# =====================================================
+# TESTS
+# =====================================================
+
+# The FAQ chatbot knowledge base is pure C++ (no drogon, no
+# libpq), so its tests build and run everywhere, including CI.
+add_executable(FaqServiceTest
+    tests/faq_service_test.cpp
+)
+
+enable_testing()
+
+add_test(
+    NAME FaqServiceTest
+    COMMAND FaqServiceTest
+)
